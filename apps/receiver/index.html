@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StreamCaster Receiver</title>
+    <link rel="stylesheet" href="/r/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <video id="player" playsinline webkit-playsinline></video>
+      <div id="idle" class="idle">
+        <div class="idle-card">
+          <h1>StreamCaster</h1>
+          <p class="hint">Open the sender app on your phone and enter this code:</p>
+          <div id="room-code">······</div>
+          <div id="qr"></div>
+          <p id="status" class="status">Waiting for sender…</p>
+        </div>
+      </div>
+      <div id="tap-to-play" class="tap hidden">Tap to play</div>
+      <div id="toast" class="toast hidden"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
