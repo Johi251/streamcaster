@@ -3,7 +3,7 @@
  * Two modes:
  *  - stream mode: sends a MediaStream (screen mirror / camera) to the receiver
  *  - file mode:   hosts a DataChannel for chunked local-file transfer
- * ICE failure within 8s surfaces an error so callers can fall back to Path B.
+ * ICE failure within 15s surfaces an error so callers can fall back to Path B.
  */
 import { ICE_SERVERS } from "@streamcaster/shared";
 
@@ -73,13 +73,14 @@ export class SenderPeer {
       if (ev.candidate) this.sendSignal("ice", ev.candidate.toJSON());
     };
 
-    // 8s watchdog: if we're not connected by then, report failure.
+    // 15s watchdog: if we're not connected by then, report failure.
+    // (STUN gathering can take several seconds on firewalled/slow networks.)
     if (this.watchDog) clearTimeout(this.watchDog);
     this.watchDog = setTimeout(() => {
       if (pc.connectionState !== "connected") {
         this.onIceFailure();
       }
-    }, 8000);
+    }, 15000);
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "connected" && this.watchDog) {

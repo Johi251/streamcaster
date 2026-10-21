@@ -27,8 +27,12 @@
     "deploy:all": "pnpm build:site && pnpm deploy:signaling && pnpm deploy:proxy && pnpm deploy:pages"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0",
     "wrangler": "^3.85.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "workerd", "sharp"]
   }
 }

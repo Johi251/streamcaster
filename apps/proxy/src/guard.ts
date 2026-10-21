@@ -35,8 +35,14 @@ export interface GuardResult {
   url?: URL;
 }
 
+export interface GuardOptions {
+  httpsOnly?: boolean;
+  /** Test/dev only: allow http + private/loopback hosts (local E2E fixtures). */
+  allowPrivate?: boolean;
+}
+
 /** Validate a `url` query parameter for proxying. */
-export function guardUrl(raw: string | null, opts: { httpsOnly?: boolean } = {}): GuardResult {
+export function guardUrl(raw: string | null, opts: GuardOptions = {}): GuardResult {
   if (!raw) return { ok: false, status: 400, reason: "missing url parameter" };
   let url: URL;
   try {
@@ -49,6 +55,9 @@ export function guardUrl(raw: string | null, opts: { httpsOnly?: boolean } = {})
   }
   if (opts.httpsOnly !== false && url.protocol !== "https:") {
     return { ok: false, status: 400, reason: "https only" };
+  }
+  if (opts.allowPrivate) {
+    return { ok: true, status: 200, reason: "", url };
   }
   const host = url.hostname.toLowerCase();
   if (BLOCKED_HOSTNAMES.has(host)) {

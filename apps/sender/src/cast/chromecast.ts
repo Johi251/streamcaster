@@ -124,6 +124,8 @@ export class ChromecastSender {
   /** Register with the CastContext + start session/media listeners. */
   init(): void {
     if (!this.available) return;
+    const fw = window.cast?.framework;
+    if (!fw || !("CastContext" in fw)) return; // incomplete framework — click-time requestSession() will no-op gracefully
     const ctx = cast.framework.CastContext.getInstance();
     ctx.setOptions({
       receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,

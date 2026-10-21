@@ -306,7 +306,7 @@ async function castUrl(rawUrl: string, now: HTMLElement): Promise<void> {
   }
 
   // Looks like a page (no media extension) → extract automatically.
-  if (!/\.(m3u8|mp4|webm|mpd|mov|m4v)(\?|#|$)/i.test(url.pathname)) {
+  if (!/\.(m3u8|mp4|webm|mpd|mov|m4v)(\?|#|$)/i.test(url.pathname) && !/\/hls\?url=|\/seg\?url=/.test(rawUrl)) {
     const results = await runExtract(rawUrl, document.getElementById("candidates") ?? el("div"), now);
     if (results.length === 0) setStatus("No video found on that page — try a direct media URL.", true);
     return;
@@ -499,6 +499,10 @@ function onMessage(msg: ServerMessage): void {
         title: msg.state.title,
       });
       break;
+    case "webrtc":
+      // answer + ICE candidates from the receiver peer
+      void peer?.handleSignal(msg.kind, msg.payload);
+      break;
     case "error":
       setStatus(msg.message, true);
       break;
@@ -513,9 +517,15 @@ void (async () => {
   cc = new ChromecastSender();
   castAvail = await cc.detect();
   if (castAvail) {
-    cc.init();
-    cc.onState(updateRemoteState);
+    try {
+      cc.init();
+      cc.onState(updateRemoteState);
+    } catch {
+      castAvail = false; // framework present but broken — fall back gracefully
+    }
   }
+  // Detection may finish after the user already connected — refresh the UI.
+  if (connected) renderConnected();
 })();
 
 const hash = location.hash.match(/join=([0-9A-Za-z]+)/);

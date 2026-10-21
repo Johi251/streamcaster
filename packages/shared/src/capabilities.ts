@@ -1,9 +1,26 @@
 import type { ReceiverCaps } from "./protocol.js";
 
-/** STUN servers (free, public). */
-export const ICE_SERVERS: RTCIceServer[] = [
-  { urls: ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
-];
+/**
+ * STUN servers (free, public).
+ * Overridable at build time via VITE_ICE_SERVERS (JSON array) — used by the
+ * E2E build ("[]") to skip unreachable STUN servers in sandboxes; on real
+ * Wi-Fi, gathering is fast and the default is correct.
+ */
+export const ICE_SERVERS: RTCIceServer[] = (() => {
+  try {
+    const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+    const raw = env?.VITE_ICE_SERVERS;
+    if (raw) {
+      const parsed = JSON.parse(raw) as RTCIceServer[];
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    /* fall through to default */
+  }
+  return [
+    { urls: ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
+  ];
+})();
 
 /** Media types probed on the receiver to warn about codec gaps. */
 export const PROBED_TYPES = [

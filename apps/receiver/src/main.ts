@@ -35,6 +35,11 @@ const codeEl = document.getElementById("room-code") as HTMLDivElement;
 const qrEl = document.getElementById("qr") as HTMLDivElement;
 const toastEl = document.getElementById("toast") as HTMLDivElement;
 
+// Session state — declared BEFORE the boot block below, because start()
+// (invoked synchronously during module evaluation) assigns `client`.
+let client: SignalingClient | null = null;
+let peer: ReceiverPeer | null = null;
+
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 function toast(msg: string): void {
   toastEl.textContent = msg;
@@ -80,9 +85,6 @@ setInterval(() => {
   stateDirty = false;
   client.send({ t: "state", state });
 }, 1000);
-
-let client: SignalingClient | null = null;
-let peer: ReceiverPeer | null = null;
 
 function sendSignal(kind: "answer" | "ice", payload: unknown): void {
   client?.send({ t: "webrtc", kind, payload });

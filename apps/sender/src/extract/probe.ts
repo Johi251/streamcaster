@@ -49,6 +49,8 @@ export async function probeMedia(url: string): Promise<MediaProbe> {
 export function classify(url: string): "mp4" | "hls" | "unsupported" {
   const clean = url.split("#")[0]!;
   if (/\.m3u8(\?|$)/i.test(clean)) return "hls";
+  // Already-proxied manifest URLs (receiver/player route) count as HLS.
+  if (/\/hls\?url=/i.test(clean)) return "hls";
   if (/\.(mp4|webm|mov|m4v)(\?|$)/i.test(clean)) return "mp4";
   if (/\.mpd(\?|$)/i.test(clean)) return "unsupported"; // DASH: needs MSE shim, out of scope
   return "mp4"; // extension-less: let <video> try

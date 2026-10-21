@@ -2,6 +2,7 @@
  * Receiver-side WebRTC: answers the sender's offer, renders the track.
  * Also hosts the `file` datachannel used for local-file streaming.
  */
+import { ICE_SERVERS } from "@streamcaster/shared";
 import type { ReceiverPlayer } from "../player/player.js";
 
 export interface FileMeta {
@@ -114,7 +115,3 @@ export class ReceiverPeer {
     this.pc = null;
   }
 }
-
-export const ICE_SERVERS: RTCIceServer[] = [
-  { urls: ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
-];

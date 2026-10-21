@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Extraction test page</title>
+    <meta property="og:video" content="/r/media/sample.mp4" />
+    <script type="application/ld+json">
+      { "@type": "VideoObject", "name": "fixture", "contentUrl": "/r/media/sample.mp4" }
+    </script>
+  </head>
+  <body>
+    <h1>Fixture</h1>
+    <video src="/r/media/sample.mp4" controls></video>
+    <a href="/r/media/sample.mp4">download</a>
+    <!-- HLS reference in a player-config style script -->
+    <script>window.playerConfig = { file: "/r/media/sample.m3u8" };</script>
+  </body>
+</html>

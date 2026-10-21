@@ -26,8 +26,13 @@ const CORS_HEADERS: Record<string, string> = {
   "access-control-expose-headers": "content-length, content-range, content-type, accept-ranges",
 };
 
+interface Env {
+  /** Set to "1" ONLY in dev/E2E to allow http + private hosts (local fixtures). */
+  ALLOW_PRIVATE_TARGETS?: string;
+}
+
 export default {
-  async fetch(request: Request, _env: unknown, _ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
@@ -35,17 +40,18 @@ export default {
       return json({ error: "method not allowed" }, 405);
     }
 
+    const guardOpts = { httpsOnly: env.ALLOW_PRIVATE_TARGETS !== "1", allowPrivate: env.ALLOW_PRIVATE_TARGETS === "1" };
     const url = new URL(request.url);
     try {
       switch (url.pathname) {
         case "/health":
           return json({ ok: true, routes: ["/fetch", "/hls", "/seg", "/health"] });
         case "/fetch":
-          return await handleFetch(request);
+          return await handleFetch(request, guardOpts);
         case "/hls":
-          return await handleHls(request);
+          return await handleHls(request, guardOpts);
         case "/seg":
-          return await handleSeg(request);
+          return await handleSeg(request, guardOpts);
         default:
           return json({ error: "not found" }, 404);
       }
@@ -57,13 +63,15 @@ export default {
 
 // ------------------------------------------------------------------- /fetch
 
-async function handleFetch(request: Request): Promise<Response> {
-  const target = guardUrl(new URL(request.url).searchParams.get("url"));
+async function handleFetch(request: Request, guardOpts: { httpsOnly?: boolean; allowPrivate?: boolean }): Promise<Response> {
+  const target = guardUrl(new URL(request.url).searchParams.get("url"), guardOpts);
   if (!target.ok || !target.url) return json({ error: target.reason }, target.status);
 
-  const upstream = await fetchWithRedirectCap(target.url, {
-    headers: { "user-agent": "Mozilla/5.0 (compatible; StreamCasterBot/1.0)" },
-  });
+  const upstream = await fetchWithRedirectCap(
+    target.url,
+    { headers: { "user-agent": "Mozilla/5.0 (compatible; StreamCasterBot/1.0)" } },
+    guardOpts
+  );
   const mime = normalizeMime(upstream.headers.get("content-type"));
   if (!isAllowedContentType(upstream.headers.get("content-type"))) {
     return json({ error: "content type not allowed: " + mime }, 415);
@@ -100,11 +108,11 @@ async function handleFetch(request: Request): Promise<Response> {
 
 // --------------------------------------------------------------------- /hls
 
-async function handleHls(request: Request): Promise<Response> {
-  const target = guardUrl(new URL(request.url).searchParams.get("url"));
+async function handleHls(request: Request, guardOpts: { httpsOnly?: boolean; allowPrivate?: boolean }): Promise<Response> {
+  const target = guardUrl(new URL(request.url).searchParams.get("url"), guardOpts);
   if (!target.ok || !target.url) return json({ error: target.reason }, target.status);
 
-  const upstream = await fetchWithRedirectCap(target.url);
+  const upstream = await fetchWithRedirectCap(target.url, {}, guardOpts);
   const mime = normalizeMime(upstream.headers.get("content-type"));
   if (!isAllowedContentType(upstream.headers.get("content-type"))) {
     return json({ error: "content type not allowed: " + mime }, 415);
@@ -132,14 +140,16 @@ async function handleHls(request: Request): Promise<Response> {
 
 // --------------------------------------------------------------------- /seg
 
-async function handleSeg(request: Request): Promise<Response> {
-  const target = guardUrl(new URL(request.url).searchParams.get("url"));
+async function handleSeg(request: Request, guardOpts: { httpsOnly?: boolean; allowPrivate?: boolean }): Promise<Response> {
+  const target = guardUrl(new URL(request.url).searchParams.get("url"), guardOpts);
   if (!target.ok || !target.url) return json({ error: target.reason }, target.status);
 
   const range = request.headers.get("range");
-  const upstream = await fetchWithRedirectCap(target.url, {
-    headers: range ? { range } : {},
-  });
+  const upstream = await fetchWithRedirectCap(
+    target.url,
+    { headers: range ? { range } : {} },
+    guardOpts
+  );
   if (!isAllowedContentType(upstream.headers.get("content-type"))) {
     return json({ error: "content type not allowed" }, 415);
   }
@@ -164,6 +174,7 @@ async function handleSeg(request: Request): Promise<Response> {
 async function fetchWithRedirectCap(
   url: URL,
   init: RequestInit = {},
+  guardOpts: { httpsOnly?: boolean; allowPrivate?: boolean } = {},
   depth = 0
 ): Promise<Response> {
   if (depth > MAX_REDIRECTS) throw new Error("too many redirects");
@@ -172,10 +183,10 @@ async function fetchWithRedirectCap(
     const loc = res.headers.get("location");
     if (!loc) return res;
     const next = new URL(loc, url);
-    const check = guardUrl(next.toString());
+    const check = guardUrl(next.toString(), guardOpts);
     if (!check.ok) throw new Error("redirect blocked: " + check.reason);
     void res.body?.cancel();
-    return fetchWithRedirectCap(next, init, depth + 1);
+    return fetchWithRedirectCap(next, init, guardOpts, depth + 1);
   }
   return res;
 }
