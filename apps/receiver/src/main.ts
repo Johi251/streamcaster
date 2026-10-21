@@ -169,7 +169,7 @@ async function execute(op: CommandOp): Promise<void> {
         state.duration = duration || state.duration;
         stateDirty = true;
       });
-      peer.setFileMeta({ name: op.name, size: op.size, mime: op.mime } satisfies FileMeta);
+      peer.setFileMeta({ name: op.filename, size: op.size, mime: op.mime } satisfies FileMeta);
       break;
     case "stream-start":
       idle.classList.add("hidden");

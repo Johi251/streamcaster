@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@streamcaster/shared": "*",
+    "@streamcaster/shared": "workspace:*",
     "hls.js": "^1.5.15",
     "qrcode": "^1.5.4"
   },

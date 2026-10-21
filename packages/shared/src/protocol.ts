@@ -28,7 +28,7 @@ export type CommandOp =
   | { name: "volume"; value: number }
   | { name: "stop" }
   | { name: "subtitle"; url?: string; content?: string; label?: string }
-  | { name: "file-meta"; name: string; size: number; mime: string }
+  | { name: "file-meta"; filename: string; size: number; mime: string }
   | { name: "stream-start"; kind: "screen" | "camera" }
   | { name: "stream-stop" };
 

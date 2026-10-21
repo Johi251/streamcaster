@@ -18,7 +18,7 @@
     "dev:receiver": "pnpm --filter @streamcaster/receiver dev",
     "dev:signaling": "pnpm --filter @streamcaster/signaling dev",
     "dev:proxy": "pnpm --filter @streamcaster/proxy dev",
-    "typecheck": "tsc -p packages/shared/tsconfig.json --noEmit && pnpm --filter @streamcaster/signaling typecheck",
+    "typecheck": "tsc -p packages/shared/tsconfig.json --noEmit && pnpm --filter @streamcaster/signaling typecheck && pnpm --filter @streamcaster/proxy typecheck",
     "test": "vitest run",
     "verify": "pnpm typecheck && pnpm test",
     "deploy:signaling": "pnpm --filter @streamcaster/signaling deploy",

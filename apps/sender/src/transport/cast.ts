@@ -35,8 +35,8 @@ export class CastCommands {
     this.op({ name: "subtitle", content, label });
   }
 
-  fileMeta(name: string, size: number, mime: string): void {
-    this.op({ name: "file-meta", name, size, mime });
+  fileMeta(filename: string, size: number, mime: string): void {
+    this.op({ name: "file-meta", filename, size, mime });
   }
 
   streamStart(kind: "screen" | "camera"): void {

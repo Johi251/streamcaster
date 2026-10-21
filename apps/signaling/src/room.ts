@@ -302,7 +302,10 @@ export class Room implements DurableObject {
 
   private tryAttachment(ws: WebSocket): SocketAttachment | null {
     try {
-      return ws.deserializeAttachment("role") as SocketAttachment;
+      // workers-types historically types deserializeAttachment() without args;
+      // the runtime accepts an optional attachment name.
+      const api = ws as unknown as { deserializeAttachment(name?: string): unknown };
+      return api.deserializeAttachment("role") as SocketAttachment;
     } catch {
       return null;
     }

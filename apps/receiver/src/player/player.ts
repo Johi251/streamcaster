@@ -5,10 +5,14 @@
  */
 import Hls from "hls.js";
 
+const PROXY_ORIGIN = (import.meta.env.VITE_PROXY_URL as string | undefined) ?? "";
+
 export class ReceiverPlayer {
   readonly video: HTMLVideoElement;
   private hls: Hls | null = null;
   private subtitleUrl: string | null = null;
+  /** URLs already retried through the proxy — prevents retry loops. */
+  private proxiedRetries = new Set<string>();
 
   constructor(
     video: HTMLVideoElement,
@@ -36,7 +40,25 @@ export class ReceiverPlayer {
       this.hls.loadSource(url);
       this.hls.attachMedia(this.video);
       this.hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (data.fatal) {
+        if (!data.fatal) return;
+        // Belt-and-braces: if a direct (non-proxied) HLS URL fails at network
+        // level, retry once through the proxy (sender-side probe usually
+        // routes CORS-blocked origins here already).
+        if (
+          data.type === Hls.ErrorTypes.NETWORK_ERROR &&
+          PROXY_ORIGIN &&
+          !url.includes("/hls?url=") &&
+          !this.proxiedRetries.has(url)
+        ) {
+          this.proxiedRetries.add(url);
+          this.toast("Retrying stream through proxy…");
+          this.hls?.loadSource(`${PROXY_ORIGIN}/hls?url=${encodeURIComponent(url)}`);
+          this.hls?.startLoad();
+          return;
+        }
+        if (data.details === "keyLoadError" || data.details === "decryptError") {
+          this.toast("Stream is DRM-protected — playback not possible.");
+        } else {
           this.toast("Stream error: " + data.details + ". Source may block cross-origin playback.");
         }
       });
