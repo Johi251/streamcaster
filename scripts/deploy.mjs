@@ -28,7 +28,7 @@ function wrangler(args, cwd = root, capture = false) {
 // 1. deploy workers, capture their URLs
 console.log("==> deploying signaling worker…");
 const signalingOut = wrangler("deploy", join(root, "apps", "signaling"), true);
-const signalingUrl = signalingOut.match(/https:\/\/[a-z0-9-]+\.workers\.dev/i)?.[0];
+const signalingUrl = signalingOut.match(/https:\/\/[a-z0-9.-]+\.workers\.dev/i)?.[0];
 if (!signalingUrl) {
   console.error("could not determine the signaling worker URL from wrangler output:\n" + signalingOut);
   process.exit(1);
@@ -37,7 +37,7 @@ console.log("    signaling: " + signalingUrl);
 
 console.log("==> deploying proxy worker…");
 const proxyOut = wrangler("deploy", join(root, "apps", "proxy"), true);
-const proxyUrl = proxyOut.match(/https:\/\/[a-z0-9-]+\.workers\.dev/i)?.[0];
+const proxyUrl = proxyOut.match(/https:\/\/[a-z0-9.-]+\.workers\.dev/i)?.[0];
 if (!proxyUrl) {
   console.error("could not determine the proxy worker URL from wrangler output:\n" + proxyOut);
   process.exit(1);
