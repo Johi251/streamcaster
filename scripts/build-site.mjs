@@ -38,4 +38,20 @@ cpSync(join(root, "apps", "sender", "dist"), siteDist, { recursive: true });
 // 3. SPA fallback for receiver deep links (/r/<CODE>)
 writeFileSync(join(siteDist, "_redirects"), "/r/* /r/index.html 200\n");
 
+// 4. Security headers (Cloudflare Pages _headers)
+//    No CSP here: the Cast SDK injects scripts from gstatic.com at runtime —
+//    a CSP would break native Chromecast. The rest is strict.
+writeFileSync(
+  join(siteDist, "_headers"),
+  [
+    "/*",
+    "  X-Content-Type-Options: nosniff",
+    "  Referrer-Policy: strict-origin-when-cross-origin",
+    "  X-Frame-Options: DENY",
+    "  Permissions-Policy: camera=(self), microphone=(self), display-capture=(self), geolocation=()",
+    "  Cross-Origin-Opener-Policy: same-origin",
+    "",
+  ].join("\n")
+);
+
 console.log("site assembled at " + siteDist);

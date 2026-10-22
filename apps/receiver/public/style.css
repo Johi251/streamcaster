@@ -1,19 +1,23 @@
 :root {
   --bg: #0b0d12;
-  --card: #141822;
+  --card: rgba(20, 24, 34, 0.78);
   --text: #e8ebf2;
   --muted: #8a93a6;
   --accent: #4f8cff;
   --radius: 18px;
+  --glass-blur: saturate(160%) blur(16px);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #app {
   height: 100%;
-  background: var(--bg);
+  background:
+    radial-gradient(1000px 500px at 70% -20%, rgba(79, 140, 255, 0.12), transparent 60%),
+    var(--bg);
   color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
 
@@ -33,16 +37,26 @@ html, body, #app {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 24px;
 }
 .idle.hidden { display: none; }
 
 .idle-card {
   text-align: center;
   background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius);
   padding: 48px 56px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  animation: idle-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
+@keyframes idle-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
 .idle-card h1 {
   font-size: 28px;
   font-weight: 700;
@@ -58,6 +72,7 @@ html, body, #app {
   color: var(--accent);
   margin-bottom: 18px;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 32px rgba(79, 140, 255, 0.45);
 }
 
 #qr { display: flex; justify-content: center; margin-bottom: 14px; }
@@ -72,6 +87,7 @@ html, body, #app {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
   font-size: 32px;
   font-weight: 700;
   cursor: pointer;
@@ -84,7 +100,7 @@ html, body, #app {
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(20, 24, 34, 0.95);
+  background: rgba(20, 24, 34, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--text);
   padding: 12px 20px;
@@ -93,5 +109,20 @@ html, body, #app {
   z-index: 20;
   max-width: 80%;
   text-align: center;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  animation: toast-in 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .toast.hidden { display: none; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
