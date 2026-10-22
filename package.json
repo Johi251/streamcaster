@@ -24,7 +24,7 @@
     "deploy:signaling": "pnpm --filter @streamcaster/signaling deploy",
     "deploy:proxy": "pnpm --filter @streamcaster/proxy deploy",
     "deploy:pages": "wrangler pages deploy site/dist --project-name streamcaster",
-    "deploy:all": "pnpm build:site && pnpm deploy:signaling && pnpm deploy:proxy && pnpm deploy:pages"
+    "deploy:all": "node scripts/deploy.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
