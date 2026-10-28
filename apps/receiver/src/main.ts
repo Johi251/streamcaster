@@ -8,6 +8,7 @@ import {
   probeCapabilities,
   isValidRoomCode,
   normalizeRoomCode,
+  generateRoomCode,
   type CommandOp,
   type ServerMessage,
   type PlaybackState,
@@ -21,12 +22,12 @@ import { ReceiverPeer, type FileMeta } from "./webrtc/receive.js";
 const params = new URLSearchParams(location.search);
 const pathCode = normalizeRoomCode(location.pathname.split("/").pop() ?? "");
 const queryCode = normalizeRoomCode(params.get("code") ?? "");
-const code = isValidRoomCode(pathCode) ? pathCode : isValidRoomCode(queryCode) ? queryCode : "";
+let code = isValidRoomCode(pathCode) ? pathCode : isValidRoomCode(queryCode) ? queryCode : "";
 
 const SIGNALING_URL =
   (import.meta.env.VITE_SIGNALING_URL as string | undefined) ??
   (params.get("ws") as string | undefined) ??
-  "https://streamcaster-signaling.johan.workers.dev";
+  "https://streamcaster-signaling.streamcaster.workers.dev";
 
 const video = document.getElementById("player") as HTMLVideoElement;
 const idle = document.getElementById("idle") as HTMLDivElement;
@@ -49,12 +50,18 @@ function toast(msg: string): void {
 }
 
 if (!code) {
-  statusEl.textContent = "No room code in URL. Open this page as /r/<CODE>.";
-} else {
-  codeEl.textContent = code;
-  void renderQr(code);
-  start();
+  // No code in URL → the receiver generates its own room code, displays it,
+  // and connects. This is the normal flow when you open /r/ directly on a TV
+  // browser (Fire TV Silk, Smart TV browser, Echo Show, etc.): you read the
+  // code off the screen and type it into the sender on your phone.
+  code = generateRoomCode();
+  // Reflect the code in the URL so a page reload restores the same room
+  // (instead of generating a new code and orphaning the sender).
+  history.replaceState(null, "", `./${code}`);
 }
+codeEl.textContent = code;
+void renderQr(code);
+start();
 
 async function renderQr(code: string): Promise<void> {
   const senderUrl = `${location.origin}/#join=${code}`;

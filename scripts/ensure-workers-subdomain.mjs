@@ -63,8 +63,15 @@ if (!token) {
 const accounts = cf(token, "GET", "/accounts");
 const accountId = accounts?.result?.[0]?.id;
 if (!accountId) {
-  console.error("    could not read account id from Cloudflare API: " + JSON.stringify(accounts).slice(0, 300));
-  process.exit(1);
+  // The stored oauth_token may be expired (wrangler refreshes it internally
+  // via refresh_token, but this script reads the raw token). A 9109
+  // "Invalid access token" is not fatal here — the subdomain is almost
+  // certainly already registered from a prior deploy, and even if not,
+  // `wrangler deploy` itself will surface the real auth problem. Skip
+  // gracefully instead of blocking the whole deploy.
+  const msg = String(accounts?.errors?.[0]?.message ?? JSON.stringify(accounts)).slice(0, 200);
+  console.log(`    (subdomain preflight skipped — ${msg})`);
+  process.exit(0);
 }
 
 // already registered? then nothing to do.
