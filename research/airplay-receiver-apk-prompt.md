@@ -19,6 +19,22 @@ Zeitlimit. Alternative zu AirScreen (zeitbegrenzt) und AirReceiver (2,99 $).
 (CLI) oder Cursor (IDE). Grund: überlegen in Kotlin/NDK-Integration und
 großem Codebase-Kontext. Kostenlos Alternative: Gemini 2.5 Pro in AI Studio.
 
+**Arbeitsordner (lokal):** `C:\Users\johan\MASTER_SETUP\00 PROJEKTE\StreamCaster`
+ist der gemeinsame Projektordner. Die Webapp liegt direkt dort (pnpm-Monorepo).
+Dieses APK-Projekt wird als Unterordner `airplay-receiver\` angelegt:
+
+```
+C:\Users\johan\MASTER_SETUP\00 PROJEKTE\StreamCaster\
+  ├─ apps/ packages/ scripts/ site/   ← StreamCaster Webapp (pnpm-Monorepo)
+  ├─ research/airplay-receiver-apk-prompt.md  ← dieser Prompt
+  ├─ ACCESS.md                        ← zentrale Integrations-Referenz
+  └─ airplay-receiver/                 ← NEU: dieses Android-Projekt hier anlegen
+```
+
+Die `airplay-receiver\`-Umgebung ist eigenständig (eigene Gradle-Build,
+eigenes Git-Repo optional). Sie verbindet sich mit der Webapp nur über die
+Signaling-Worker-URL aus ACCESS.md — keine Datei-Abhängigkeit zur Webapp.
+
 ## Wichtig: StreamCaster ist der zentrale Hub
 
 **https://streamcaster.pages.dev ist die einzige Adresse, die der Nutzer
@@ -266,6 +282,11 @@ Diese Anleitung wird auch direkt in der StreamCaster-Webapp angezeigt.
 
 ## Referenzen
 
+- **Lokaler Arbeitsordner:** `C:\Users\johan\MASTER_SETUP\00 PROJEKTE\StreamCaster`
+- **Webapp-Repo (im Arbeitsordner):** `apps/`, `packages/`, `scripts/`, `site/`
+- **Dieser Prompt:** `research/airplay-receiver-apk-prompt.md`
+- **Integrations-Referenz:** `ACCESS.md` (alle URLs, Endpunkte, Protokoll-Spec)
+- **APK-Projekt anlegen unter:** `airplay-receiver/` (Schwesterordner der Webapp)
 - StreamCaster Hub: https://streamcaster.pages.dev
 - StreamCaster Receiver (Browser): https://streamcaster.pages.dev/r/
 - Signaling-Worker: https://streamcaster-signaling.streamcaster.workers.dev
