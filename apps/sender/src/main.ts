@@ -29,11 +29,11 @@ import { probeMedia, PROXY_ORIGIN } from "./extract/probe.js";
  * GitHub "latest" asset, so this URL never needs to change between releases.
  */
 const AIRPLAY_APK_URL = "/apk";
-const AIRPLAY_APK_VERSION = "1.0.2";
+const AIRPLAY_APK_VERSION = "1.0.3";
 const AIRPLAY_APK_SIZE = "18,4 MB";
 const AIRPLAY_APK_ABIS = "arm64 + armv7";
 const AIRPLAY_APK_SHA256 =
-  "e7c78af64464e979be13359d57e161c20e09b629d43366a7489a847ab45b0843";
+  "f7833ae8871d69637f073956b4419d9feb00a074d3773e714389234078409539";
 /** AirPlay device name advertised via mDNS — must match the app. */
 const AIRPLAY_DEVICE_NAME = "StreamCaster TV";
 
