@@ -9,6 +9,7 @@ Alle Endpunkte, Deploy-Befehle und Integrationspunkte in einer Datei.
 |---|---|---|
 | Sender (PWA) | https://streamcaster.pages.dev | Cast-Startseite, Fähigkeiten-Hub |
 | Receiver | https://streamcaster.pages.dev/r/ | TV-Empfängerseite, auto-generiert Room-Code |
+| Receiver (Code in URL) | https://streamcaster.pages.dev/r/?code=XXXXXX | Reload-fest; `/r/<CODE>` funktioniert auf Pages **nicht** (fällt auf den Sender zurück) |
 | Signaling-Worker | https://streamcaster-signaling.streamcaster.workers.dev | WebSocket-Signaling, Room-DO |
 | Proxy-Worker | https://streamcaster-proxy.streamcaster.workers.dev | CORS-Relay, HLS-Rewrite, Media-Pass-through |
 
@@ -78,6 +79,15 @@ SSRF-Guards: nur https:, keine privaten/Loopback-Ziele, Content-Type-Whitelist
 ```json
 {"t":"state","state":{"paused":false,"position":12.5,"duration":120,"currentUrl":"...","title":"..."}}
 ```
+
+**Join-Antwort (Server → Client):**
+```json
+{"t":"joined","code":"ABC234","role":"sender","peers":2,"peerPresent":true,"state":{},"peerCaps":{}}
+```
+`peerPresent` ist die einzige verlässliche Aussage darüber, ob die Gegenrolle im Raum ist —
+`peers` zählt den Beitretenden selbst mit. Der Sender zeigt erst bei `peerPresent: true` die
+verbundene Ansicht; sonst den Wartezustand mit sichtbarem Code. Clients sollten
+`peerPresent ?? peers >= 2` lesen, damit ältere Worker weiter funktionieren.
 
 ## Integrationspunkte (für externe Projekte)
 
