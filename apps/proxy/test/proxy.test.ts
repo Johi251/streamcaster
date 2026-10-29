@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { guardUrl, isAllowedContentType } from "../src/guard.js";
 import { isMasterPlaylist, rewriteManifest, rewriteUri, rewriteBrowseHtml, BROWSE_INJECT } from "../src/rewrite.js";
+import { isAdHost, stripAdMarkup } from "../src/blocklist.js";
 
 describe("guardUrl", () => {
   it("accepts https URLs", () => {
@@ -162,5 +163,74 @@ describe("rewriteBrowseHtml", () => {
     const html = '<a href="https://aniworld.to/login">login</a>';
     const out = rewriteBrowseHtml(html, ctx);
     expect(out).toContain("/browse?url=" + encodeURIComponent("https://aniworld.to/login"));
+  });
+});
+
+describe("ad filtering", () => {
+  it("matches ad hosts and their subdomains only", () => {
+    expect(isAdHost("https://securepubads.g.doubleclick.net/tag/js/gpt.js")).toBe(true);
+    expect(isAdHost("//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js")).toBe(true);
+    expect(isAdHost("https://cdn.taboola.com/libtrc/x.js")).toBe(true);
+    expect(isAdHost("https://aniworld.to/js/app.js")).toBe(false);
+    // suffix match must not fire on a lookalike domain
+    expect(isAdHost("https://notdoubleclick.net/x.js")).toBe(false);
+    expect(isAdHost("nonsense")).toBe(false);
+  });
+
+  it("removes ad scripts, keeps the site's own", () => {
+    const html =
+      '<head><script src="https://securepubads.g.doubleclick.net/tag/js/gpt.js"></script>' +
+      '<script src="/js/app.js"></script></head>';
+    const { html: out, removed } = stripAdMarkup(html);
+    expect(removed).toBe(1);
+    expect(out).not.toContain("doubleclick");
+    expect(out).toContain("/js/app.js");
+  });
+
+  it("removes ad iframes, pixels and preconnect links", () => {
+    const html =
+      '<iframe src="https://ads.example-adnet.com/frame"></iframe>' +
+      '<img src="https://www.googleadservices.com/pagead/conversion/1">' +
+      '<link rel="preconnect" href="https://adnxs.com">' +
+      '<img src="/poster.jpg">';
+    // example-adnet is not on the list; the other two are
+    const { html: out, removed } = stripAdMarkup(html);
+    expect(removed).toBe(2);
+    expect(out).toContain("example-adnet"); // unknown host stays
+    expect(out).not.toContain("googleadservices");
+    expect(out).not.toContain("adnxs.com");
+    expect(out).toContain("/poster.jpg");
+  });
+
+  it("drops adsbygoogle slots", () => {
+    const { html: out, removed } = stripAdMarkup('<ins class="adsbygoogle" data-ad-slot="1"></ins>');
+    expect(removed).toBe(1);
+    expect(out).toBe("");
+  });
+
+  it("leaves a page without ads byte-identical apart from the injection", () => {
+    const html = "<html><head></head><body><p>hi</p></body></html>";
+    const out = rewriteBrowseHtml(html, {
+      targetOrigin: "https://aniworld.to",
+      proxyOrigin: "https://proxy.test",
+      base: "https://aniworld.to/serie/1",
+    });
+    expect(out).toContain("<p>hi</p>");
+    expect(out).toContain("sc-adblock");
+    expect(out).toContain('"url":"https://aniworld.to/serie/1"');
+    expect(out).toContain('"blocked":0');
+  });
+
+  it("reports the number of removed elements to the parent", () => {
+    const html =
+      '<html><head><script src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script></head><body></body></html>';
+    const out = rewriteBrowseHtml(html, {
+      targetOrigin: "https://aniworld.to",
+      proxyOrigin: "https://proxy.test",
+      base: "https://aniworld.to/",
+    });
+    expect(out).toContain('"blocked":1');
+    // the script tag is gone (the CSS selector mentioning the host may remain)
+    expect(out).not.toContain("pagead/js/adsbygoogle.js");
   });
 });

@@ -288,17 +288,65 @@ function addBrowseCandidate(url: string, title: string, listEl: HTMLElement, now
   listEl.append(btn);
 }
 
+// ------------------------------------------------------------- browse state
+
+/** Bookmarks for the in-page browser. Small, personal, local — localStorage. */
+const BM_KEY = "sc.browse.bookmarks";
+
+interface Bookmark {
+  url: string;
+  title: string;
+}
+
+function loadBookmarks(): Bookmark[] {
+  try {
+    const raw = localStorage.getItem(BM_KEY);
+    if (!raw) return [];
+    const list: unknown = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((b): b is Bookmark => typeof b === "object" && b !== null && typeof (b as Bookmark).url === "string")
+      .slice(0, 60);
+  } catch {
+    return []; // private mode / corrupted value — bookmarks are not critical
+  }
+}
+
+function saveBookmarks(list: Bookmark[]): void {
+  try {
+    localStorage.setItem(BM_KEY, JSON.stringify(list.slice(0, 60)));
+  } catch {
+    /* quota or private mode — the session still works, the list just won't persist */
+  }
+}
+
 function buildBrowseCard(now: HTMLElement): HTMLElement {
   const proxy = PROXY_ORIGIN;
   const listEl = el("div", { id: "browse-candidates" });
   const seen = new Set<string>();
+
+  // Browser state. The iframe is cross-origin, so its history and location are
+  // unreadable from here — we keep our own stack and let the injected script
+  // report each page it lands on.
+  const stack: string[] = [];
+  let idx = -1;
+  let current = "";
+  let currentTitle = "";
+  let bookmarks = loadBookmarks();
 
   const urlInput = el("input", {
     type: "url",
     id: "browse-url",
     placeholder: "https://aniworld.to/… (any streaming site)",
   }) as HTMLInputElement;
-  const openBtn = el("button", { class: "primary", id: "browse-open" }, "Open in browser");
+  const openBtn = el("button", { class: "primary", id: "browse-open", type: "button" }, "Open");
+  const backBtn = el("button", { class: "nav-btn", id: "browse-back", type: "button", title: "Back" }, "←");
+  const fwdBtn = el("button", { class: "nav-btn", id: "browse-fwd", type: "button", title: "Forward" }, "→");
+  const reloadBtn = el("button", { class: "nav-btn", id: "browse-reload", type: "button", title: "Reload" }, "⟳");
+  const starBtn = el("button", { class: "nav-btn", id: "browse-star", type: "button", title: "Bookmark this page" }, "☆");
+  const adNote = el("span", { class: "ad-note", id: "browse-blocked" });
+  const bmList = el("div", { class: "bm-list", id: "bm-list" });
+
   const iframe = el("iframe", {
     id: "browse-frame",
     sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-presentation",
@@ -309,31 +357,133 @@ function buildBrowseCard(now: HTMLElement): HTMLElement {
   );
   iframe.src = "about:blank";
 
-  openBtn.addEventListener("click", () => {
-    const u = urlInput.value.trim();
+  const isBookmarked = (): boolean => bookmarks.some((b) => b.url === current);
+
+  const syncNav = (): void => {
+    backBtn.disabled = idx <= 0;
+    fwdBtn.disabled = idx >= stack.length - 1;
+    reloadBtn.disabled = !current;
+    starBtn.disabled = !current;
+    starBtn.textContent = isBookmarked() ? "★" : "☆";
+  };
+
+  const go = (url: string, push = true): void => {
     if (!proxy) {
       setStatus("Proxy not configured — redeploy to enable Browse.", true);
       return;
     }
+    let abs: string;
     try {
-      new URL(u);
+      abs = new URL(url).toString();
     } catch {
       setStatus("Invalid URL.", true);
       return;
     }
-    iframe.src = `${proxy}/browse?url=${encodeURIComponent(u)}`;
+    if (push) {
+      stack.splice(idx + 1);
+      stack.push(abs);
+      idx = stack.length - 1;
+    }
+    current = abs;
+    currentTitle = "";
+    urlInput.value = abs;
+    adNote.textContent = "";
+    iframe.src = `${proxy}/browse?url=${encodeURIComponent(abs)}`;
+    syncNav();
+  };
+
+  const renderBookmarks = (): void => {
+    bmList.replaceChildren();
+    if (bookmarks.length === 0) {
+      bmList.append(el("span", { class: "sub" }, "No bookmarks yet — ☆ next to the address saves the current page."));
+      return;
+    }
+    for (const b of bookmarks) {
+      const open = el("button", { class: "bm-open", type: "button", title: b.url }, b.title || b.url);
+      open.addEventListener("click", () => go(b.url));
+      const del = el("button", { class: "bm-del", type: "button", title: "Remove bookmark" }, "×");
+      del.addEventListener("click", () => {
+        bookmarks = bookmarks.filter((x) => x.url !== b.url);
+        saveBookmarks(bookmarks);
+        renderBookmarks();
+        syncNav();
+      });
+      bmList.append(el("span", { class: "bm-chip" }, open, del));
+    }
+  };
+
+  openBtn.addEventListener("click", () => go(urlInput.value.trim()));
+  urlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") go(urlInput.value.trim());
+  });
+  backBtn.addEventListener("click", () => {
+    if (idx > 0) go(stack[--idx]!, false);
+  });
+  fwdBtn.addEventListener("click", () => {
+    if (idx < stack.length - 1) go(stack[++idx]!, false);
+  });
+  reloadBtn.addEventListener("click", () => {
+    if (current) go(current, false);
+  });
+  starBtn.addEventListener("click", () => {
+    if (!current) return;
+    if (isBookmarked()) bookmarks = bookmarks.filter((b) => b.url !== current);
+    else bookmarks = [{ url: current, title: currentTitle || current }, ...bookmarks];
+    saveBookmarks(bookmarks);
+    renderBookmarks();
+    syncNav();
   });
 
-  const onMedia = (e: MessageEvent): void => {
-    const d = e.data as { __sc?: boolean; type?: string; url?: string; title?: string };
-    if (!d || d.__sc !== true || d.type !== "media" || !d.url) return;
-    if (seen.has(d.url)) return;
-    seen.add(d.url);
-    addBrowseCandidate(d.url, d.title ?? "", listEl, now);
-    setStatus("Captured a media URL — cast it below.");
+  const onMsg = (e: MessageEvent): void => {
+    const d = e.data as {
+      __sc?: boolean;
+      type?: string;
+      url?: string;
+      title?: string;
+      blocked?: number;
+      count?: number;
+    };
+    if (!d || d.__sc !== true) return;
+
+    if (d.type === "media" && d.url) {
+      if (seen.has(d.url)) return;
+      seen.add(d.url);
+      addBrowseCandidate(d.url, d.title ?? "", listEl, now);
+      setStatus("Captured a media URL — cast it below.");
+      return;
+    }
+
+    if (d.type === "blocked" && typeof d.count === "number") {
+      adNote.textContent = `${d.count} ${d.count === 1 ? "ad" : "ads"} blocked`;
+      return;
+    }
+
+    if (d.type === "nav") {
+      // A link inside the page moved us. The parent cannot read the iframe's
+      // location, so this message is the only way to keep the address bar and
+      // the history stack honest.
+      if (d.url && d.url !== current) {
+        current = d.url;
+        urlInput.value = d.url;
+        currentTitle = "";
+        if (stack[idx] !== d.url) {
+          stack.splice(idx + 1);
+          stack.push(d.url);
+          idx = stack.length - 1;
+        }
+      }
+      if (d.title) currentTitle = d.title;
+      if (typeof d.blocked === "number" && d.blocked > 0) {
+        adNote.textContent = `${d.blocked} ${d.blocked === 1 ? "ad" : "ads"} blocked`;
+      }
+      syncNav();
+    }
   };
-  window.addEventListener("message", onMedia);
-  browseCleanup = () => window.removeEventListener("message", onMedia);
+  window.addEventListener("message", onMsg);
+  browseCleanup = () => window.removeEventListener("message", onMsg);
+
+  renderBookmarks();
+  syncNav();
 
   return el(
     "div",
@@ -344,9 +494,10 @@ function buildBrowseCard(now: HTMLElement): HTMLElement {
       { class: "sub" },
       "For sites where paste-and-extract fails (AniWorld and similar): open the page inside StreamCaster, navigate to your episode and press play. The real video URL is captured and offered below to cast."
     ),
-    urlInput,
-    el("div", { class: "row" }, openBtn),
+    el("div", { class: "browser-bar" }, urlInput, openBtn),
+    el("div", { class: "nav-row" }, backBtn, fwdBtn, reloadBtn, starBtn, adNote),
     iframe,
+    bmList,
     listEl
   );
 }

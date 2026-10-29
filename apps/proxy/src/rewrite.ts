@@ -9,12 +9,12 @@
  * touched (DRM-protected manifests fail naturally in the player).
  */
 
+import { AD_CSS, AD_HOSTS, stripAdMarkup } from "./blocklist.js";
+
 /** Manifest that references other playlists (master) vs. media playlist. */
 export function isMasterPlaylist(manifest: string): boolean {
   return /^#EXT-X-STREAM-INF/m.test(manifest);
-}
-
-export interface RewriteContext {
+}export interface RewriteContext {
   /** Absolute URL the manifest was fetched from (resolution base). */
   manifestUrl: string;
   /** Proxy origin, e.g. https://streamcaster-proxy.example.workers.dev */
@@ -85,7 +85,26 @@ function rewriteAttrUri(line: string, ctx: RewriteContext, isPlaylistRef: boolea
  * it as a cast candidate). Works for elements present at load, created later
  * (SPA players), and ones started via `.play()`.
  */
+/**
+ * Injected into every proxied page, before any of the page's own scripts.
+ *
+ * Two jobs:
+ *  1. Report media URLs (and the current page URL/title) to the parent frame.
+ *  2. Refuse ad requests. Static stripping in blocklist.ts only catches markup
+ *     that is already in the HTML — most real sites (Spiegel, AniWorld) build
+ *     their ad tags at runtime, so we also intercept the places where a URL is
+ *     put on an element: `script.src = …`, `setAttribute('src', …)` and
+ *     `document.write('<script src=…>')`. Blocking there means the request is
+ *     never issued, which is what actually saves the bandwidth.
+ *
+ * The host list arrives as `window.__SC_AD_HOSTS` (same array the static
+ * stripper uses) so the two can never drift apart.
+ */
 export const BROWSE_INJECT = `<script>(function(){
+var C=window.__SC_NAV||{},H=window.__SC_AD_HOSTS||[],N=C.blocked||0,T=null;
+function isAd(u){if(!u)return false;var h;try{h=new URL(u,location.href).hostname.toLowerCase();}catch(e){return false;}
+ for(var i=0;i<H.length;i++){var d=H[i];if(h===d||h.slice(-(d.length+1))==='.'+d)return true;}return false;}
+function bump(){N++;if(T)return;T=setTimeout(function(){T=null;try{parent.postMessage({__sc:true,type:'blocked',count:N},'*');}catch(e){}},400);}
 function report(u,t){if(!u)return;try{parent.postMessage({__sc:true,type:'media',url:u,title:t||document.title},'*');}catch(e){}}
 function bind(v){if(v.__sc)return;v.__sc=true;
  v.addEventListener('loadstart',function(){report(this.currentSrc||this.src,document.title);});
@@ -93,6 +112,16 @@ function bind(v){if(v.__sc)return;v.__sc=true;
  var p=v.play;v.play=function(){try{report(this.currentSrc||this.src,document.title);}catch(e){}return p.apply(this,arguments);};}
  if(document.querySelectorAll){document.querySelectorAll('video,audio').forEach(bind);}
  try{new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;var els=(n.tagName==='VIDEO'||n.tagName==='AUDIO')?[n]:(n.querySelectorAll?n.querySelectorAll('video,audio'):[]);if(els.forEach)els.forEach(bind);else for(var i=0;i<els.length;i++)bind(els[i]);});});}).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+function patchSrc(P){try{var pr=P.prototype,d=Object.getOwnPropertyDescriptor(pr,'src');if(!d||!d.set)return;
+ Object.defineProperty(pr,'src',{configurable:true,enumerable:d.enumerable,get:d.get,set:function(v){if(isAd(v)){bump();return;}d.set.call(this,v);}});}catch(e){}}
+try{patchSrc(HTMLScriptElement);patchSrc(HTMLIFrameElement);patchSrc(HTMLImageElement);}catch(e){}
+try{var sa=Element.prototype.setAttribute;Element.prototype.setAttribute=function(n,v){if((n==='src'||n==='href')&&isAd(v)){bump();return;}return sa.call(this,n,v);};}catch(e){}
+try{var dw=document.write;document.write=function(s){if(typeof s==='string'&&s.indexOf('<script')>=0){
+ s=s.replace(/<script\\b[^>]*\\bsrc\\s*=\\s*["']([^"']+)["'][^>]*>[\\s\\S]*?<\\/script\\s*>/gi,function(m,u){if(isAd(u)){bump();return '';}return m;});}
+ return dw.call(document,s);};}catch(e){}
+function nav(){try{parent.postMessage({__sc:true,type:'nav',url:C.url,title:document.title,blocked:N},'*');}catch(e){}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',nav);else nav();
+setTimeout(nav,1500);
 })();</script>`;
 
 export interface BrowseContext {
@@ -150,12 +179,28 @@ function rewriteAttr(html: string, attr: string, tagFilter: string | null, ctx: 
 }
 
 /**
+ * Everything injected into a proxied page, in order:
+ *   1. the page's own URL, the static block count and the ad host list — the
+ *      parent frame cannot read a cross-origin iframe's location, and the
+ *      runtime blocker needs the same list the stripper used;
+ *   2. CSS that hides leftover ad containers;
+ *   3. the capture / block / nav script.
+ */
+export function browseInject(targetUrl: string, blocked: number): string {
+  const cfg = JSON.stringify({ url: targetUrl, blocked }).replace(/</g, "\\u003c");
+  const hosts = JSON.stringify(AD_HOSTS).replace(/</g, "\\u003c");
+  return `<script>window.__SC_NAV=${cfg};window.__SC_AD_HOSTS=${hosts};</script>${AD_CSS}${BROWSE_INJECT}`;
+}
+
+/**
  * Rewrite a target page for in-proxy browsing:
  *  - links + form actions + media/iframe src that point at the same origin are
  *    re-routed through `/browse?url=` so navigation stays captured;
  *  - cross-origin links get `target="_blank"` so they don't break the proxy
  *    frame;
- *  - the media-capture script is injected so play() reveals the real URL.
+ *  - ad/tracker elements are removed (see blocklist.ts);
+ *  - the media-capture script is injected so play() reveals the real URL, and
+ *    so the parent learns the page URL (address bar, history, bookmarks).
  */
 export function rewriteBrowseHtml(html: string, ctx: BrowseContext): string {
   let out = html;
@@ -175,12 +220,18 @@ export function rewriteBrowseHtml(html: string, ctx: BrowseContext): string {
     return `${pre}target="_blank" rel="noopener noreferrer" href=${hrefq}`;
   });
 
+  // Ads last: stripping happens on the final markup, so a removed tag can
+  // never leave a half-rewritten attribute behind.
+  const stripped = stripAdMarkup(out);
+  out = stripped.html;
+  const inject = browseInject(ctx.base, stripped.removed);
+
   if (/<head[^>]*>/i.test(out)) {
-    out = out.replace(/<head[^>]*>/i, (m) => m + BROWSE_INJECT);
+    out = out.replace(/<head[^>]*>/i, (m) => m + inject);
   } else if (/<html[^>]*>/i.test(out)) {
-    out = out.replace(/<html[^>]*>/i, (m) => m + BROWSE_INJECT);
+    out = out.replace(/<html[^>]*>/i, (m) => m + inject);
   } else {
-    out = BROWSE_INJECT + out;
+    out = inject + out;
   }
   return out;
 }
