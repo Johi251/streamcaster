@@ -35,8 +35,19 @@ mkdirSync(join(siteDist, "r"), { recursive: true });
 cpSync(join(root, "apps", "receiver", "dist"), join(siteDist, "r"), { recursive: true });
 cpSync(join(root, "apps", "sender", "dist"), siteDist, { recursive: true });
 
-// 3. SPA fallback for receiver deep links (/r/<CODE>)
-writeFileSync(join(siteDist, "_redirects"), "/r/* /r/index.html 200\n");
+// 3. SPA fallback for receiver deep links (/r/<CODE>) + short APK redirect
+//    /apk keeps the Fire TV "Downloader" input short and lets us swap the
+//    release target without touching the SPA.
+const APK_URL =
+  "https://github.com/Johi251/streamcaster-airplay-receiver/releases/latest/download/streamcaster-receiver.apk";
+writeFileSync(
+  join(siteDist, "_redirects"),
+  [
+    "/r/* /r/index.html 200",
+    `/apk ${APK_URL} 302`,
+    "",
+  ].join("\n")
+);
 
 // 4. Security headers (Cloudflare Pages _headers)
 //    No CSP here: the Cast SDK injects scripts from gstatic.com at runtime —

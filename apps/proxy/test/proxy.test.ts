@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { guardUrl, isAllowedContentType } from "../src/guard.js";
-import { isMasterPlaylist, rewriteManifest, rewriteUri } from "../src/rewrite.js";
+import { isMasterPlaylist, rewriteManifest, rewriteUri, rewriteBrowseHtml, BROWSE_INJECT } from "../src/rewrite.js";
 
 describe("guardUrl", () => {
   it("accepts https URLs", () => {
@@ -114,5 +114,53 @@ describe("rewriteManifest", () => {
     const out = rewriteManifest(src, ctx);
     expect(out).toContain(encodeURIComponent("https://cdn.example.com/live/audio.m3u8"));
     expect(out).toContain(encodeURIComponent("https://cdn.example.com/live/iframe.m3u8"));
+  });
+});
+
+describe("rewriteBrowseHtml", () => {
+  const ctx = {
+    targetOrigin: "https://aniworld.to",
+    proxyOrigin: "https://streamcaster-proxy.workers.dev",
+    base: "https://aniworld.to/anime/stream/foo/staffel-4/episode-18",
+  };
+
+  it("injects the media-capture script into <head>", () => {
+    const html = "<html><head><title>x</title></head><body><video></video></body></html>";
+    const out = rewriteBrowseHtml(html, ctx);
+    expect(out).toContain(BROWSE_INJECT);
+    expect(out.indexOf(BROWSE_INJECT)).toBeLessThan(out.indexOf("</head>"));
+  });
+
+  it("re-routes same-origin links through /browse", () => {
+    const html = '<a href="/episode/19">next</a>';
+    const out = rewriteBrowseHtml(html, ctx);
+    expect(out).toContain("/browse?url=" + encodeURIComponent("https://aniworld.to/episode/19"));
+  });
+
+  it("re-routes root-relative iframe src through /browse", () => {
+    const html = '<iframe src="/embed/player"></iframe>';
+    const out = rewriteBrowseHtml(html, ctx);
+    expect(out).toContain("/browse?url=" + encodeURIComponent("https://aniworld.to/embed/player"));
+  });
+
+  it("leaves cross-origin links alone but opens them in a new tab", () => {
+    const html = '<a href="https://ads.example.com/x">ad</a>';
+    const out = rewriteBrowseHtml(html, ctx);
+    expect(out).not.toContain("/browse?url=");
+    expect(out).toContain('target="_blank"');
+    expect(out).toContain('rel="noopener noreferrer"');
+  });
+
+  it("does not rewrite cross-origin absolute img src", () => {
+    const html = '<img src="https://cdn.other.com/poster.jpg">';
+    const out = rewriteBrowseHtml(html, ctx);
+    expect(out).toContain('src="https://cdn.other.com/poster.jpg"');
+    expect(out).not.toContain("/browse?url=");
+  });
+
+  it("absolutizes same-origin absolute href", () => {
+    const html = '<a href="https://aniworld.to/login">login</a>';
+    const out = rewriteBrowseHtml(html, ctx);
+    expect(out).toContain("/browse?url=" + encodeURIComponent("https://aniworld.to/login"));
   });
 });

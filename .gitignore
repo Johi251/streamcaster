@@ -11,3 +11,6 @@ test-results/
 
 # Eigenständiges Android-Projekt (separates Git-Repo unter airplay-receiver/)
 airplay-receiver/
+
+# Lokale APK-Testartefakte
+*.apk

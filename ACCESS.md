@@ -45,8 +45,11 @@ Account: CF-ACCOUNT-EMAIL-REDACTED · Account-ID: CF-ACCOUNT-ID-REDACTED
 | GET | /fetch?url=URL | CORS-Relay für HTML/JSON (2MB-Cap) |
 | GET | /hls?url=URL | m3u8-Manifest mit umgeschriebenen URIs |
 | GET | /seg?url=URL | Segment-Pass-through mit Range-Forwarding |
+| GET | /browse?url=URL | Intercepting-Proxy: lädt Seite, injiziert Media-Capture, re-routed Links |
+| GET | /p?url=URL | Permissiver Passthrough (Media/HTML) mit Range + CORS (für gecapturte URLs) |
 
-SSRF-Guards: nur https:, keine privaten/Loopback-Ziele, Content-Type-Whitelist.
+SSRF-Guards: nur https:, keine privaten/Loopback-Ziele, Content-Type-Whitelist
+(/browse erlaubt text/html; /p ist bewusst permissiv für gecapturte Media).
 
 ## Protokoll
 
@@ -78,19 +81,36 @@ SSRF-Guards: nur https:, keine privaten/Loopback-Ziele, Content-Type-Whitelist.
 
 ## Integrationspunkte (für externe Projekte)
 
-### AirPlay-Receiver-APK (geplant)
-- Verbindet sich als Receiver via WS zum Signaling-Worker
-- Generiert eigenen Room-Code (gleiches Alphabet)
-- Empfängt CommandOps, spielt Media via ExoPlayer
-- APK-Download-URL: Platzhalter `AIRPLAY_RECEIVER_APK_URL` (in Webapp einzutragen)
+### AirPlay-Receiver-APK (veröffentlicht, v1.0.1)
+- Eigenständiges Repo: https://github.com/Johi251/streamcaster-airplay-receiver (GPL-3.0)
+- Verbindet sich als Receiver via WS zum Signaling-Worker, generiert eigenen Room-Code
+- Empfängt CommandOps, spielt Media via ExoPlayer/Media3; AirPlay-2-Spiegelung via UxPlay-Kern
+- AirPlay-Gerätename im mDNS: **„StreamCaster TV"** (App-Name: „StreamCaster Receiver")
+- Download (stabil, `latest`): `https://github.com/Johi251/streamcaster-airplay-receiver/releases/latest/download/streamcaster-receiver.apk`
+- Kurz-Redirect der Webapp: **`https://streamcaster.pages.dev/apk`** → 302 auf obige URL
+  (definiert in `scripts/build-site.mjs` → `_redirects`; Release-Wechsel braucht kein SPA-Redeploy)
+- Build v1.0.1: 18.362.116 Bytes, SHA-256 `494878edd6c43010474ee7ec31bed7669f6833f43c71a32ad9595852f2968549`
+- ABIs `arm64-v8a` + `armeabi-v7a`, minSdk **24**, targetSdk 34, Paket `com.streamcaster.receiver`
+- Signatur v2/v3, Cert-SHA-256 `57d47fdad1d88ef1535a4e23ce66e9c16db3e2ecfd5f9f0499cb0748ccc86d9c`
+  (identisch zu v1.0.0 → Updates installieren über die alte Version)
+- **Build läuft auf GitHub Actions (Ubuntu)**, `.github/workflows/android.yml`; Artifact = unsigniert,
+  Signatur lokal mit `airplay-receiver/.secrets/streamcaster-release.jks`.
+  Optional signiert die CI selbst, wenn die Repo-Secrets `ANDROID_KEYSTORE_B64`,
+  `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` gesetzt sind.
+- Kompatibilität: **Fire OS 6+ (Android 7.0+)** — Fire TV Stick 4K/4K Max/Lite, 3rd-Gen-Stick, Cube.
+  Fire OS 5 (2. Gen) ist zu alt (API 22 < minSdk 24).
+- Webapp-Karte: `buildAirPlayCard()` in `apps/sender/src/main.ts`
 - Prompt: `research/airplay-receiver-apk-prompt.md`
+- **Offen:** kein Test auf physischer Fire-TV-Hardware, kein E2E-Test mit iPhone
 
-### Intercepting-Proxy (geplant, Option C)
-- Neue Proxy-Route `/browse?url=URL`
-- Lädt Zielseite, injiziert Intercept-Script
-- Monkey-patched HTMLMediaElement.prototype.play / src-Setter
-- Abgefangene Media-URL → PostMessage an Eltern-Frame → Cast-Kandidat
-- IP-gebundene Tokens: Media durch `/seg?url=` leiten, nicht direkt
+### Intercepting-Proxy (Option C — umgesetzt)
+- Proxy-Route `/browse?url=URL` lädt Zielseite, injiziert Media-Capture-Script
+  (`rewrite.ts` BROWSE_INJECT), re-routed selbige Links/Forms/Iframes durch
+  weitere `/browse?url=`-Hops, streift X-Frame-Options + CSP.
+- Gecapturte Media-URL (postMessage an Eltern-Frame) → Cast-Kandidat im Sender.
+- Routing der Kandidaten: HLS (`.m3u8`) → `/hls?url=`; sonstiges Media → `/p?url=`
+  (permissiver Passthrough mit Range + CORS).
+- IP-gebundene Tokens: Media immer durch Proxy leiten, nie direkt.
 
 ## Repository-Struktur
 
@@ -130,5 +150,11 @@ Kein API-Token im Repo. Wrangler-OAuth-Token liegt in
 ## Versionierung
 
 - v1.0.0 — v1.0.3: Webapp, Proxy, Extraction, Chromecast, Deploy-Automation
-- Geplant: Intercepting-Proxy, PWA-Manifest, Fähigkeiten-Hub-UI
-- Extern: AirPlay-Receiver-APK (eigenständiges Projekt)
+- v1.1.0: PWA (Manifest + Icons + Service Worker, Offline-Shell), AirPlay-Download-Hub,
+  Intercepting-Proxy (`/browse` + `/p`), Browse-&-Cast-UI im Sender
+- v1.1.1: APK-Download live verdrahtet (`/apk`-Redirect), AirPlay-Karte mit
+  Sideloading-Anleitung + SHA-256, AirPlay-Gerätename „StreamCaster TV"
+- v1.1.2: AirPlay-Karte auf APK v1.0.1 umgestellt (18,4 MB, arm64 + armv7, Fire OS 6+),
+  Vertrauenszeile zweizeilig, Kompatibilitätshinweis
+- Extern: AirPlay-Receiver-APK v1.0.1 (GitHub: Johi251/streamcaster-airplay-receiver, GPL-3.0)
+  — v1.0.0 war auf Fire OS 6 nicht installierbar (minSdk 28, nur arm64)

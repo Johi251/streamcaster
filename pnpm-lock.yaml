@@ -75,6 +75,10 @@ importers:
         version: 2.1.9(@types/node@26.6.5)
 
   apps/signaling:
+    dependencies:
+      '@streamcaster/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20241022.0

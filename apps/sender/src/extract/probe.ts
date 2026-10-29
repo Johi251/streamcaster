@@ -18,7 +18,7 @@ export interface MediaProbe {
   playable: "mp4" | "hls" | "unsupported";
 }
 
-const PROXY_ORIGIN =
+export const PROXY_ORIGIN =
   (import.meta.env.VITE_PROXY_URL as string | undefined) ?? "";
 
 export async function probeMedia(url: string): Promise<MediaProbe> {

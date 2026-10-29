@@ -21,12 +21,29 @@ import { SenderPeer } from "./transport/webrtc.js";
 import { sendFile } from "./transport/file.js";
 import { canMirror, captureCamera, captureScreen } from "./capture/capture.js";
 import { extractBest, type ExtractResult } from "./extract/useExtract.js";
-import { probeMedia } from "./extract/probe.js";
+import { probeMedia, PROXY_ORIGIN } from "./extract/probe.js";
+
+/**
+ * Free AirPlay Receiver APK for Fire TV.
+ * The short /apk route (see scripts/build-site.mjs _redirects) points at the
+ * GitHub "latest" asset, so this URL never needs to change between releases.
+ */
+const AIRPLAY_APK_URL = "/apk";
+const AIRPLAY_APK_VERSION = "1.0.1";
+const AIRPLAY_APK_SIZE = "18,4 MB";
+const AIRPLAY_APK_ABIS = "arm64 + armv7";
+const AIRPLAY_APK_SHA256 =
+  "494878edd6c43010474ee7ec31bed7669f6833f43c71a32ad9595852f2968549";
+/** AirPlay device name advertised via mDNS — must match the app. */
+const AIRPLAY_DEVICE_NAME = "StreamCaster TV";
+
+/** Holds the cleanup for the /browse postMessage listener while connected. */
+let browseCleanup: (() => void) | null = null;
 
 const SIGNALING_URL =
   (import.meta.env.VITE_SIGNALING_URL as string | undefined) ??
   (new URLSearchParams(location.search).get("ws") as string | undefined) ??
-  "https://streamcaster-signaling.johan.workers.dev";
+  "https://streamcaster-signaling.streamcaster.workers.dev";
 
 // ------------------------------------------------------------------- elements
 
@@ -110,7 +127,8 @@ function renderHome(prefill = ""): void {
         { class: "sub" },
         "It shows a code and a QR. Scan the QR with your phone camera to skip typing."
       )
-    )
+    ),
+    buildAirPlayCard()
   );
 
   const input = document.getElementById("code-input") as HTMLInputElement;
@@ -132,6 +150,189 @@ function renderHome(prefill = ""): void {
   if (prefill && isValidRoomCode(normalizeRoomCode(prefill))) connect(normalizeRoomCode(prefill));
 }
 
+/**
+ * "iPhone / iPad mirroring" card for the home screen. iOS has no
+ * getDisplayMedia in WKWebView, so browser-based screen mirroring is impossible
+ * there — the only path is native AirPlay. We point users at the free
+ * StreamCaster Receiver APK for Fire TV and explain the sideloading flow.
+ */
+function buildAirPlayCard(): HTMLElement {
+  // Shown without the scheme so the whole path (incl. "/apk") stays readable
+  // on a phone; the copy button still yields a fully qualified URL.
+  const displayUrl = location.host + "/apk";
+  const copyUrl = location.origin + "/apk";
+
+  const copyBtn = el("button", { class: "ghost small", type: "button" }, "Copy URL");
+  copyBtn.addEventListener("click", () => {
+    const done = (): void => {
+      copyBtn.textContent = "Copied ✓";
+      setTimeout(() => (copyBtn.textContent = "Copy URL"), 1600);
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(copyUrl).then(done).catch(() => {
+        copyBtn.textContent = "Copy failed";
+      });
+    } else {
+      copyBtn.textContent = displayUrl;
+    }
+  });
+
+  const download = el(
+    "a",
+    { class: "primary big block", href: AIRPLAY_APK_URL, rel: "noopener" },
+    "⬇ Download APK for Fire TV"
+  );
+
+  return el(
+    "div",
+    { class: "card" },
+    el("h2", {}, "iPhone / iPad screen mirroring"),
+    el(
+      "p",
+      { class: "sub" },
+      "iOS browsers can't capture the screen — there is no getDisplayMedia in Safari or any iPhone browser. AirPlay is the only path, and it needs nothing installed on the iPhone. Only the Fire TV needs the free receiver app."
+    ),
+    download,
+    el(
+      "p",
+      { class: "trust" },
+      `v${AIRPLAY_APK_VERSION} · ${AIRPLAY_APK_SIZE} · ${AIRPLAY_APK_ABIS}`,
+      // Deliberate break: the hash tail would otherwise wrap onto its own line.
+      el("br"),
+      `SHA-256 ${AIRPLAY_APK_SHA256.slice(0, 8)}…${AIRPLAY_APK_SHA256.slice(-4)}`
+    ),
+    el(
+      "p",
+      { class: "note" },
+      "Needs Fire OS 6 or newer (Android 7.0+). That covers the Fire TV Stick 4K, 4K Max, Lite, the 3rd-gen Stick and the Cube; a 2nd-gen Stick still on Fire OS 5 is too old."
+    ),
+
+    el("h3", {}, "Install on the Fire TV (one time)"),
+    el(
+      "ol",
+      { class: "steps" },
+      el("li", {}, "Fire TV → Search → install “Downloader” (free, Amazon Appstore)."),
+      el(
+        "li",
+        {},
+        "Open Downloader and enter this URL:",
+        el("div", { class: "copy-row" }, el("code", {}, displayUrl), copyBtn)
+      ),
+      el("li", {}, "Allow “Apps from unknown sources” when prompted, then install the APK."),
+      el("li", {}, "Start “StreamCaster Receiver” → the room code appears on screen.")
+    ),
+
+    el("h3", {}, "Mirror the iPhone"),
+    el(
+      "ol",
+      { class: "steps" },
+      el("li", {}, "iPhone on the same Wi-Fi as the Fire TV."),
+      el("li", {}, `Control Center → Screen Mirroring → “${AIRPLAY_DEVICE_NAME}”.`),
+      el("li", {}, "The TV switches to fullscreen automatically. Open any app, large, on the TV.")
+    ),
+    el(
+      "p",
+      { class: "note" },
+      "WebRTC screen/camera sharing from the browser does not work on iOS — AirPlay is the way. On Android and desktop Chrome, screen sharing works directly."
+    )
+  );
+}
+
+/**
+ * "Browse & cast any website" card (the intercepting-proxy / Option C UI).
+ * Opens a target site inside our proxy iframe; the injected capture script
+ * (rewrite.ts BROWSE_INJECT) posts real media URLs back here, which we offer
+ * as cast candidates. Those are routed through the proxy so the receiver can
+ * play CORS-blocked / tokenized streams.
+ */
+function routeThroughProxy(raw: string): string {
+  if (!PROXY_ORIGIN) return raw;
+  const enc = encodeURIComponent(raw);
+  const clean = raw.split("#")[0] ?? "";
+  if (/\.m3u8(\?|$)/i.test(clean)) return `${PROXY_ORIGIN}/hls?url=${enc}`;
+  return `${PROXY_ORIGIN}/p?url=${enc}`; // /p relays mp4/ts/m4s/etc. with CORS
+}
+
+function addBrowseCandidate(url: string, title: string, listEl: HTMLElement, now: HTMLElement): void {
+  const proxied = routeThroughProxy(url);
+  const short = url.length > 64 ? url.slice(0, 64) + "…" : url;
+  const label = (title && title !== url ? title + " — " : "") + short;
+  const btn = el(
+    "button",
+    { class: "candidate", style: "display:block;width:100%;margin:4px 0;text-align:left" },
+    "▶ " + label
+  );
+  btn.addEventListener("click", () => {
+    transport?.load(proxied, undefined, undefined);
+    now.textContent = title || url;
+    setStatus("Sent to receiver.");
+  });
+  listEl.append(btn);
+}
+
+function buildBrowseCard(now: HTMLElement): HTMLElement {
+  const proxy = PROXY_ORIGIN;
+  const listEl = el("div", { id: "browse-candidates" });
+  const seen = new Set<string>();
+
+  const urlInput = el("input", {
+    type: "url",
+    id: "browse-url",
+    placeholder: "https://aniworld.to/… (any streaming site)",
+  }) as HTMLInputElement;
+  const openBtn = el("button", { class: "primary", id: "browse-open" }, "Open in browser");
+  const iframe = el("iframe", {
+    id: "browse-frame",
+    sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-presentation",
+  }) as HTMLIFrameElement;
+  iframe.setAttribute(
+    "style",
+    "width:100%;height:340px;border:1px solid var(--border);border-radius:12px;background:#000;margin-top:8px"
+  );
+  iframe.src = "about:blank";
+
+  openBtn.addEventListener("click", () => {
+    const u = urlInput.value.trim();
+    if (!proxy) {
+      setStatus("Proxy not configured — redeploy to enable Browse.", true);
+      return;
+    }
+    try {
+      new URL(u);
+    } catch {
+      setStatus("Invalid URL.", true);
+      return;
+    }
+    iframe.src = `${proxy}/browse?url=${encodeURIComponent(u)}`;
+  });
+
+  const onMedia = (e: MessageEvent): void => {
+    const d = e.data as { __sc?: boolean; type?: string; url?: string; title?: string };
+    if (!d || d.__sc !== true || d.type !== "media" || !d.url) return;
+    if (seen.has(d.url)) return;
+    seen.add(d.url);
+    addBrowseCandidate(d.url, d.title ?? "", listEl, now);
+    setStatus("Captured a media URL — cast it below.");
+  };
+  window.addEventListener("message", onMedia);
+  browseCleanup = () => window.removeEventListener("message", onMedia);
+
+  return el(
+    "div",
+    { class: "card" },
+    el("h2", {}, "Browse & cast any website"),
+    el(
+      "p",
+      { class: "sub" },
+      "For sites where paste-and-extract fails (AniWorld and similar): open the page inside StreamCaster, navigate to your episode and press play. The real video URL is captured and offered below to cast."
+    ),
+    urlInput,
+    el("div", { class: "row" }, openBtn),
+    iframe,
+    listEl
+  );
+}
+
 function updateRemoteState(s: RemoteState): void {
   remote = s;
   const seek = document.getElementById("seek") as HTMLInputElement | null;
@@ -141,6 +342,8 @@ function updateRemoteState(s: RemoteState): void {
 }
 
 function renderConnected(): void {
+  browseCleanup?.(); // drop any listener from a previous connected render
+  browseCleanup = null;
   connChip.textContent = "connected";
   connChip.className = "chip on";
 
@@ -249,6 +452,8 @@ function renderConnected(): void {
     );
   }
 
+  const browseCard = buildBrowseCard(now);
+
   view.replaceChildren(
     castCard,
     el(
@@ -258,6 +463,7 @@ function renderConnected(): void {
       el("p", { class: "sub" }, "Local files travel over your Wi-Fi (WebRTC). Screen mirroring needs Android/desktop Chrome."),
       el("div", { class: "actions" }, fileBtn, mirrorBtn, cameraBtn, subBtn)
     ),
+    browseCard,
     el(
       "div",
       { class: "card" },
@@ -282,6 +488,8 @@ function renderConnected(): void {
     peer?.stop();
     peer = null;
     connected = false;
+    browseCleanup?.();
+    browseCleanup = null;
     renderHome();
   });
 
@@ -530,3 +738,19 @@ void (async () => {
 
 const hash = location.hash.match(/join=([0-9A-Za-z]+)/);
 renderHome(hash ? normalizeRoomCode(hash[1]!) : "");
+
+// --------------------------------------------------------------------- PWA
+
+/** Register the offline app-shell service worker (production only). */
+function registerServiceWorker(): void {
+  if (!("serviceWorker" in navigator)) return;
+  // Skip during local dev so HMR + unversioned assets are never cached.
+  if (location.hostname === "localhost" || location.hostname.startsWith("127.")) return;
+  if (!location.protocol.startsWith("https")) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* offline shell is a progressive enhancement — ignore failures */
+    });
+  });
+}
+registerServiceWorker();
