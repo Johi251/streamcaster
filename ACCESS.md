@@ -99,6 +99,9 @@ SSRF-Guards: nur https:, keine privaten/Loopback-Ziele, Content-Type-Whitelist
   `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` gesetzt sind.
 - Kompatibilität: **Fire OS 6+ (Android 7.0+)** — Fire TV Stick 4K/4K Max/Lite, 3rd-Gen-Stick, Cube.
   Fire OS 5 (2. Gen) ist zu alt (API 22 < minSdk 24).
+- **Lint-Gate in der CI:** `:app:lintRelease` läuft mit, bricht aber nur bei `NewApi`-Funden ab
+  (Aufrufe über minSdk hinaus = Absturz auf älteren Geräten). Die übrigen Lint-Fehler sind Altlasten.
+  Stand: 0 `NewApi`-Verstöße.
 - Webapp-Karte: `buildAirPlayCard()` in `apps/sender/src/main.ts`
 - Prompt: `research/airplay-receiver-apk-prompt.md`
 - **Offen:** kein Test auf physischer Fire-TV-Hardware, kein E2E-Test mit iPhone
