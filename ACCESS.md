@@ -81,7 +81,7 @@ SSRF-Guards: nur https:, keine privaten/Loopback-Ziele, Content-Type-Whitelist
 
 ## Integrationspunkte (für externe Projekte)
 
-### AirPlay-Receiver-APK (veröffentlicht, v1.0.1)
+### AirPlay-Receiver-APK (veröffentlicht, v1.0.2)
 - Eigenständiges Repo: https://github.com/Johi251/streamcaster-airplay-receiver (GPL-3.0)
 - Verbindet sich als Receiver via WS zum Signaling-Worker, generiert eigenen Room-Code
 - Empfängt CommandOps, spielt Media via ExoPlayer/Media3; AirPlay-2-Spiegelung via UxPlay-Kern
@@ -89,7 +89,7 @@ SSRF-Guards: nur https:, keine privaten/Loopback-Ziele, Content-Type-Whitelist
 - Download (stabil, `latest`): `https://github.com/Johi251/streamcaster-airplay-receiver/releases/latest/download/streamcaster-receiver.apk`
 - Kurz-Redirect der Webapp: **`https://streamcaster.pages.dev/apk`** → 302 auf obige URL
   (definiert in `scripts/build-site.mjs` → `_redirects`; Release-Wechsel braucht kein SPA-Redeploy)
-- Build v1.0.1: 18.362.116 Bytes, SHA-256 `494878edd6c43010474ee7ec31bed7669f6833f43c71a32ad9595852f2968549`
+- Build v1.0.2: 18.362.116 Bytes, SHA-256 `e7c78af64464e979be13359d57e161c20e09b629d43366a7489a847ab45b0843`
 - ABIs `arm64-v8a` + `armeabi-v7a`, minSdk **24**, targetSdk 34, Paket `com.streamcaster.receiver`
 - Signatur v2/v3, Cert-SHA-256 `57d47fdad1d88ef1535a4e23ce66e9c16db3e2ecfd5f9f0499cb0748ccc86d9c`
   (identisch zu v1.0.0 → Updates installieren über die alte Version)
@@ -104,7 +104,11 @@ SSRF-Guards: nur https:, keine privaten/Loopback-Ziele, Content-Type-Whitelist
   Stand: 0 `NewApi`-Verstöße.
 - Webapp-Karte: `buildAirPlayCard()` in `apps/sender/src/main.ts`
 - Prompt: `research/airplay-receiver-apk-prompt.md`
-- **Offen:** kein Test auf physischer Fire-TV-Hardware, kein E2E-Test mit iPhone
+- **Auf echter Hardware verifiziert** (29.10., Fire TV Stick 4K 1. Gen `AFTMM`, Fire OS 6.7.1.1,
+  `armeabi-v7a`, SDK 25): App startet, `HubActivity` im Vordergrund, Raum-Code wird angezeigt,
+  `AirPlayService` auf Port 7000, mDNS `_airplay._tcp` + `_raop._tcp` als „StreamCaster TV".
+  Diagnose per `adb connect LAN-IP-REDACTED:5555` (ADB-Debugging am Stick aktiviert).
+- **Offen:** E2E-Test mit iPhone (Bildschirmspiegelung) und Sender-Gegenstelle.
 
 ### Intercepting-Proxy (Option C — umgesetzt)
 - Proxy-Route `/browse?url=URL` lädt Zielseite, injiziert Media-Capture-Script
@@ -159,5 +163,7 @@ Kein API-Token im Repo. Wrangler-OAuth-Token liegt in
   Sideloading-Anleitung + SHA-256, AirPlay-Gerätename „StreamCaster TV"
 - v1.1.2: AirPlay-Karte auf APK v1.0.1 umgestellt (18,4 MB, arm64 + armv7, Fire OS 6+),
   Vertrauenszeile zweizeilig, Kompatibilitätshinweis
-- Extern: AirPlay-Receiver-APK v1.0.1 (GitHub: Johi251/streamcaster-airplay-receiver, GPL-3.0)
-  — v1.0.0 war auf Fire OS 6 nicht installierbar (minSdk 28, nur arm64)
+- v1.1.3: AirPlay-Karte auf APK v1.0.2 (Startabsturz behoben)
+- Extern: AirPlay-Receiver-APK v1.0.2 (GitHub: Johi251/streamcaster-airplay-receiver, GPL-3.0)
+  — v1.0.0 war auf Fire OS 6 nicht installierbar (minSdk 28, nur arm64),
+  v1.0.1 stürzte beim Start ab (`RoundedCornerShape(999)` = 999 Prozent)
