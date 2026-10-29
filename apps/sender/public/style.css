@@ -98,6 +98,22 @@ main { display: flex; flex-direction: column; gap: 16px; flex: 1; }
 .row { display: flex; gap: 10px; }
 .row > * { flex: 1; }
 
+/* Room code on the "waiting for the TV" screen — same type as the input, but
+   read-only and unmissable, because it has to be compared with the TV. */
+.wait-code {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-indent: 0.3em; /* re-centre: letter-spacing adds a trailing gap */
+  color: var(--accent-2);
+  padding: 14px 0;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  font-variant-numeric: tabular-nums;
+}
+
 input[type="text"], input[type="url"] {
   width: 100%;
   background: rgba(255, 255, 255, 0.05);

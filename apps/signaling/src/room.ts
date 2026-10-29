@@ -85,6 +85,9 @@ export class Room implements DurableObject {
       code: msg.code,
       role,
       peers: this.countPeers(),
+      // Checked after the attachment is set, so the joiner can never be its own
+      // "peer". findRole() also reports SSE sinks, which are not WebSockets.
+      peerPresent: this.findRole(peerRole) !== null,
       state: role === "receiver" ? undefined : persisted ?? undefined,
       peerCaps: peerCapsRaw ? (JSON.parse(peerCapsRaw) as ReceiverCaps) : undefined,
     });
@@ -230,6 +233,7 @@ export class Room implements DurableObject {
           code: msg.code,
           role: msg.role,
           peers: this.countPeers(),
+          peerPresent: this.findRole(peerRole) !== null,
           state: msg.role === "receiver" ? undefined : this.loadState() ?? undefined,
           peerCaps: peerCapsRaw ? JSON.parse(peerCapsRaw) : undefined,
         } satisfies ServerMessage)}\n\n`

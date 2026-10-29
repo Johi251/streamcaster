@@ -1,6 +1,10 @@
 /**
  * StreamCaster receiver entry point.
- * URL shape: /r/<ROOMCODE> (or /r/ on dev — code then comes from ?code=).
+ * URL shape: /r/?code=<ROOMCODE> (a /r/<ROOMCODE> path segment is still read
+ * for older links). The query form is the canonical one because it needs no
+ * server-side rewrite: Cloudflare Pages serves /r/ as a real file, while
+ * /r/<CODE> is not a file and falls through to the sender app on the host we
+ * deploy to — a reload there would silently swap the TV into the phone UI.
  * Displays code + QR, connects to signaling, executes sender commands.
  */
 import {
@@ -56,8 +60,9 @@ if (!code) {
   // code off the screen and type it into the sender on your phone.
   code = generateRoomCode();
   // Reflect the code in the URL so a page reload restores the same room
-  // (instead of generating a new code and orphaning the sender).
-  history.replaceState(null, "", `./${code}`);
+  // (instead of generating a new code and orphaning the sender). Query form:
+  // /r/?code=XXXXXX always resolves to the real r/index.html file.
+  history.replaceState(null, "", `./?code=${code}`);
 }
 codeEl.textContent = code;
 void renderQr(code);

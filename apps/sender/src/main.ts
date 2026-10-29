@@ -77,13 +77,29 @@ let peer: SenderPeer | null = null;
 let code = "";
 let receiverCaps: ReceiverCaps | undefined;
 let remote: RemoteState = {};
-let connected = false;
+
+/**
+ * What the page is showing. "waiting" is the state that used to be missing:
+ * our signaling socket is in the room, but the TV is not — which is not a
+ * connection, and must not be dressed up as one.
+ */
+type Phase = "home" | "waiting" | "connected";
+let phase: Phase = "home";
+/** Set while we tear down on purpose so `closed` does not flash an error. */
+let closingQuietly = false;
 
 const statusMsg = el("div", { class: "status-msg" });
 
 // --------------------------------------------------------------------- router
 
-function renderHome(prefill = ""): void {
+/**
+ * @param prefill Code to put in the field.
+ * @param autoConnect Only for a QR deep link — never for a code the user is
+ *   being asked to change, or the field would be filled and immediately
+ *   submitted again.
+ */
+function renderHome(prefill = "", autoConnect = false): void {
+  phase = "home";
   connChip.textContent = "offline";
   connChip.className = "chip";
 
@@ -147,7 +163,9 @@ function renderHome(prefill = ""): void {
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") tryConnect();
   });
-  if (prefill && isValidRoomCode(normalizeRoomCode(prefill))) connect(normalizeRoomCode(prefill));
+  if (autoConnect && prefill && isValidRoomCode(normalizeRoomCode(prefill))) {
+    connect(normalizeRoomCode(prefill));
+  }
 }
 
 /**
@@ -333,6 +351,12 @@ function buildBrowseCard(now: HTMLElement): HTMLElement {
   );
 }
 
+/** Re-render whatever the current phase is (used after async boot work). */
+function refreshPhase(): void {
+  if (phase === "connected") renderConnected();
+  else if (phase === "waiting") renderWaiting();
+}
+
 function updateRemoteState(s: RemoteState): void {
   remote = s;
   const seek = document.getElementById("seek") as HTMLInputElement | null;
@@ -341,9 +365,47 @@ function updateRemoteState(s: RemoteState): void {
   }
 }
 
+/**
+ * We are in the room, the TV is not. This is the honest view for that state:
+ * the code stays visible (so it can be compared with the TV), the socket keeps
+ * running, and a `peer-joined` flips us to the connected view on its own.
+ */
+function renderWaiting(): void {
+  browseCleanup?.();
+  browseCleanup = null;
+  phase = "waiting";
+  connChip.textContent = "waiting";
+  connChip.className = "chip warn";
+
+  const changeBtn = el("button", { class: "ghost small", id: "change-code-btn" }, "Enter a different code");
+  changeBtn.addEventListener("click", () => {
+    teardown();
+    renderHome(code);
+    setStatus("");
+  });
+
+  view.replaceChildren(
+    el(
+      "div",
+      { class: "card" },
+      el("h2", {}, "Waiting for the TV"),
+      el("p", { class: "sub" }, "Connected to the room — the receiver has not joined yet."),
+      el("div", { class: "wait-code" }, code),
+      el(
+        "p",
+        { class: "sub" },
+        "The TV must show this exact code. If it shows a different one, the receiver was restarted — enter the new code instead."
+      ),
+      el("div", { class: "row" }, changeBtn),
+      statusMsg
+    )
+  );
+}
+
 function renderConnected(): void {
   browseCleanup?.(); // drop any listener from a previous connected render
   browseCleanup = null;
+  phase = "connected";
   connChip.textContent = "connected";
   connChip.className = "chip on";
 
@@ -481,15 +543,7 @@ function renderConnected(): void {
   );
 
   (document.getElementById("disconnect-btn") as HTMLButtonElement).addEventListener("click", () => {
-    client?.close();
-    client = null;
-    commands = null;
-    transport = null;
-    peer?.stop();
-    peer = null;
-    connected = false;
-    browseCleanup?.();
-    browseCleanup = null;
+    teardown();
     renderHome();
   });
 
@@ -649,7 +703,26 @@ async function pickSubtitle(): Promise<void> {
 
 // ------------------------------------------------------------------ signaling
 
+/**
+ * Drop the current session. The old socket still holds the "sender" role in
+ * the room, so joining again without this would come back as role_taken.
+ */
+function teardown(): void {
+  closingQuietly = true;
+  client?.close();
+  client = null;
+  commands = null;
+  transport = null;
+  peer?.stop();
+  peer = null;
+  phase = "home";
+  browseCleanup?.();
+  browseCleanup = null;
+  closingQuietly = false;
+}
+
 function connect(roomCode: string): void {
+  teardown();
   code = roomCode;
   client = new SignalingClient(SIGNALING_URL, {
     onMessage: onMessage,
@@ -669,18 +742,24 @@ function onStatus(status: SignalingStatus): void {
       break;
     case "ws":
     case "sse":
-      if (!connected) {
-        connected = true;
-        setStatus("");
-        renderConnected();
-      } else if (status === "sse") {
+      // The socket being up only means we are IN the room — it says nothing
+      // about a TV listening. `joined` carries that answer and renders.
+      connChip.textContent = "waiting";
+      connChip.className = "chip warn";
+      if (status === "sse" && phase === "connected") {
         setStatus("Connection degraded to compatibility mode — casting still works.", true);
       }
       break;
     case "closed":
+      if (closingQuietly) return;
       connChip.textContent = "offline";
       connChip.className = "chip";
-      connected = false;
+      if (phase !== "home") {
+        // Socket died under us: do not keep showing a session that is gone.
+        phase = "home";
+        renderHome(code);
+        setStatus("Connection lost — reconnect with the code.", true);
+      }
       break;
     case "error":
       setStatus("Connection error.", true);
@@ -690,14 +769,28 @@ function onStatus(status: SignalingStatus): void {
 
 function onMessage(msg: ServerMessage): void {
   switch (msg.t) {
-    case "joined":
+    case "joined": {
       receiverCaps = msg.peerCaps;
+      setStatus("");
+      // peerPresent is authoritative; the peers>=2 fallback keeps an older
+      // worker (before that field existed) working.
+      const present = msg.peerPresent ?? msg.peers >= 2;
+      if (present) renderConnected();
+      else renderWaiting();
       break;
+    }
     case "peer-joined":
       receiverCaps = msg.caps ?? receiverCaps;
+      if (msg.role === "receiver" && phase !== "connected") {
+        setStatus("Receiver connected.");
+        renderConnected();
+      }
       break;
     case "peer-left":
-      setStatus("Receiver disconnected.", true);
+      if (msg.role === "receiver" && phase === "connected") {
+        renderWaiting();
+        setStatus("Receiver disconnected — waiting for it to come back.", true);
+      }
       break;
     case "state":
       updateRemoteState({
@@ -712,6 +805,12 @@ function onMessage(msg: ServerMessage): void {
       void peer?.handleSignal(msg.kind, msg.payload);
       break;
     case "error":
+      if (msg.code === "role_taken") {
+        teardown();
+        renderHome(code);
+        setStatus("Another sender is already paired with this code. Close it, or pick the code again.", true);
+        return;
+      }
       setStatus(msg.message, true);
       break;
     default:
@@ -733,11 +832,17 @@ void (async () => {
     }
   }
   // Detection may finish after the user already connected — refresh the UI.
-  if (connected) renderConnected();
+  refreshPhase();
 })();
 
+// QR deep link from the receiver page: /#join=<CODE>. Consume it, then strip it
+// from the URL — left in place, every reload silently re-joins that room and
+// the code field becomes unreachable, which is exactly how a stale code turns
+// into "the page skips straight past the code entry".
 const hash = location.hash.match(/join=([0-9A-Za-z]+)/);
-renderHome(hash ? normalizeRoomCode(hash[1]!) : "");
+const deepLink = hash ? normalizeRoomCode(hash[1]!) : "";
+if (deepLink) history.replaceState(null, "", location.pathname + location.search);
+renderHome(deepLink, Boolean(deepLink));
 
 // --------------------------------------------------------------------- PWA
 

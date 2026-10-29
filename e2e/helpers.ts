@@ -15,7 +15,9 @@ export function randomCode(): string {
 
 export async function openReceiver(context: BrowserContext, code: string): Promise<Page> {
   const page = await context.newPage();
-  await page.goto(`/r/${code}`);
+  // ?code= rather than /r/<code>: the query form is a real file on every host,
+  // the path form needs a server rewrite that Cloudflare Pages does not apply.
+  await page.goto(`/r/?code=${code}`);
   await expect(page.locator("#room-code")).toHaveText(code);
   return page;
 }

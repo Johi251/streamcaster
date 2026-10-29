@@ -27,3 +27,30 @@ test("sender joins via #join= deep link (QR equivalent)", async ({ context }) =>
   await expect(sender.locator("#conn-status")).toHaveText("connected");
   await expect(receiver.locator("#status")).toHaveText("Sender connected", { timeout: 20_000 });
 });
+
+/**
+ * Regression: "connected" used to mean "my socket opened", so a deep link with
+ * a stale code showed the full connected UI against an empty room while the TV
+ * kept saying "Waiting for sender" — and the code field was unreachable.
+ */
+test("sender waits instead of claiming connected when no receiver is there", async ({ context }) => {
+  const code = randomCode();
+  const sender = await context.newPage();
+  await sender.goto(`/#join=${code}`);
+  await expect(sender.locator("#conn-status")).toHaveText("waiting", { timeout: 20_000 });
+  await expect(sender.locator("#url-input")).toHaveCount(0);
+  await expect(sender.locator(".wait-code")).toHaveText(code);
+  // …and flips over on its own once the TV turns up.
+  await openReceiver(context, code);
+  await expect(sender.locator("#conn-status")).toHaveText("connected", { timeout: 20_000 });
+});
+
+test("deep link is consumed so a reload returns to the code entry", async ({ context }) => {
+  const code = randomCode();
+  const sender = await context.newPage();
+  await sender.goto(`/#join=${code}`);
+  await expect(sender.locator("#conn-status")).toHaveText("waiting", { timeout: 20_000 });
+  await expect(sender).toHaveURL(/^[^#]*$/);
+  await sender.reload();
+  await expect(sender.locator("#code-input")).toBeVisible();
+});

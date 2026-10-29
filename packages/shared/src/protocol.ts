@@ -56,7 +56,15 @@ export type ServerMessage =
       t: "joined";
       code: string;
       role: Role;
+      /** Everyone in the room, including the socket that just joined. */
       peers: number;
+      /**
+       * Whether the opposite role is already in the room. `peers` cannot answer
+       * that on its own (it counts the joiner), and "my socket is open" says
+       * nothing about the TV being there — which is how the sender used to end
+       * up showing "connected" to an empty room.
+       */
+      peerPresent: boolean;
       state?: PlaybackState;
       peerCaps?: ReceiverCaps;
     }

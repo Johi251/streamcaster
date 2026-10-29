@@ -35,7 +35,12 @@ mkdirSync(join(siteDist, "r"), { recursive: true });
 cpSync(join(root, "apps", "receiver", "dist"), join(siteDist, "r"), { recursive: true });
 cpSync(join(root, "apps", "sender", "dist"), siteDist, { recursive: true });
 
-// 3. SPA fallback for receiver deep links (/r/<CODE>) + short APK redirect
+// 3. Legacy /r/<CODE> links + short APK redirect.
+//    The receiver itself no longer depends on a rewrite: it keeps its room code
+//    in ?code=, so /r/?code=XXXXXX always resolves to the real r/index.html.
+//    This rule is only a courtesy for old /r/<CODE> URLs; on the deployed host
+//    it is not honoured (that path falls through to the sender), which is why
+//    nothing may rely on it.
 //    /apk keeps the Fire TV "Downloader" input short and lets us swap the
 //    release target without touching the SPA.
 const APK_URL =
