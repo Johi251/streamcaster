@@ -1,167 +1,505 @@
 /**
- * Receiver player: mp4 via <video src>, HLS via hls.js when MSE is present
- * but native HLS is not (Fire TV Silk, most TV browsers).
- * Autoplay: attempt muted; on block show "Tap to play" instead of failing.
+ * StreamCaster receiver player.
+ *
+ * Handles three playback modes:
+ *   1. WebRTC MediaStream (screen mirror / camera from sender)
+ *   2. HLS (hls.js, direct or via /hls proxy)
+ *   3. MP4/WebM (direct, or via /p proxy)
+ *
+ * The factory `createPlayer()` takes the **existing** <video> element and
+ * drives it. It deliberately does not create a second video element: the
+ * controller (main.ts) binds its media listeners (timeupdate, loadedmetadata,
+ * touch gestures) to that one element, and a second <video> would leave those
+ * listeners attached to an element that never plays anything.
+ *
+ * Exposes: playing(), pause(), seek(time), volume(value), stop(), url(newUrl),
+ *          addSubtitle(), addSubtitleUrl(), attachStream(), load(url, mime)
  */
-import Hls from "hls.js";
 
-const PROXY_ORIGIN = (import.meta.env.VITE_PROXY_URL as string | undefined) ?? "";
+// ── HLS.js (CDN / npm) ─────────────────────────────────────────────────
 
-export class ReceiverPlayer {
-  readonly video: HTMLVideoElement;
-  private hls: Hls | null = null;
-  private subtitleUrl: string | null = null;
-  /** URLs already retried through the proxy — prevents retry loops. */
-  private proxiedRetries = new Set<string>();
+let hlsHs: any = null;
 
-  constructor(
-    video: HTMLVideoElement,
-    private readonly onStateChange: (playing: boolean, position: number, duration: number) => void,
-    private readonly toast: (msg: string) => void
-  ) {
-    this.video = video;
-    video.addEventListener("timeupdate", () => this.emitState());
-    video.addEventListener("pause", () => this.emitState());
-    video.addEventListener("play", () => this.emitState());
-    video.addEventListener("ended", () => this.emitState());
+async function loadHls(): Promise<any | null> {
+  if (hlsHs) return hlsHs;
+  try {
+    const { default: HLS } = await import("hls.js");
+    hlsHs = HLS;
+    return HLS;
+  } catch {
+    return null;
+  }
+}
+
+// ── HLS Player ─────────────────────────────────────────────────────────
+
+class InternalHlsPlayer {
+  private el: HTMLVideoElement;
+  private hlsInstance: any = null;
+  private _currentUrl: string = "";
+  private vttTracks: HTMLTrackElement[] = [];
+
+  constructor(url: string, videoEl: HTMLVideoElement) {
+    this.el = videoEl;
+    this.el.setAttribute("autoplay", "");
+    this.el.setAttribute("playsinline", "");
+    this.el.setAttribute("preload", "auto");
+    this.el.removeAttribute("controls");
+    this.el.style.width = "100%";
+    this.el.style.height = "100%";
+    this.el.style.display = "block";
+    this.el.style.padding = "0";
+
+    this._currentUrl = url;
+    this.load(url);
   }
 
-  show(): void {
-    this.video.classList.add("active");
+  get currentUrl() {
+    return this._currentUrl;
   }
 
-  async load(url: string, mime?: string): Promise<void> {
-    this.stop();
-    this.show();
-    const isHls = /\.m3u8(\?|$)/i.test(url) || mime === "application/vnd.apple.mpegurl";
+  get video() {
+    return this.el;
+  }
 
-    if (isHls && !this.video.canPlayType("application/vnd.apple.mpegurl") && Hls.isSupported()) {
-      this.hls = new Hls({ enableWorker: true });
-      this.hls.loadSource(url);
-      this.hls.attachMedia(this.video);
-      this.hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (!data.fatal) return;
-        // Belt-and-braces: if a direct (non-proxied) HLS URL fails at network
-        // level, retry once through the proxy (sender-side probe usually
-        // routes CORS-blocked origins here already).
-        if (
-          data.type === Hls.ErrorTypes.NETWORK_ERROR &&
-          PROXY_ORIGIN &&
-          !url.includes("/hls?url=") &&
-          !this.proxiedRetries.has(url)
-        ) {
-          this.proxiedRetries.add(url);
-          this.toast("Retrying stream through proxy…");
-          this.hls?.loadSource(`${PROXY_ORIGIN}/hls?url=${encodeURIComponent(url)}`);
-          this.hls?.startLoad();
-          return;
-        }
-        if (data.details === "keyLoadError" || data.details === "decryptError") {
-          this.toast("Stream is DRM-protected — playback not possible.");
-        } else {
-          this.toast("Stream error: " + data.details + ". Source may block cross-origin playback.");
-        }
-      });
-    } else {
-      this.video.src = url;
-    }
-
+  async playing(): Promise<void> {
     try {
-      await this.video.play();
-    } catch {
-      // Autoplay blocked — show tap overlay; also try muted autoplay as second chance.
-      this.video.muted = true;
-      try {
-        await this.video.play();
-        this.toast("Playing muted — press volume up on remote or tap to unmute.");
-        this.video.addEventListener("click", () => (this.video.muted = false), { once: true });
-      } catch {
-        this.showTapToPlay();
+      const HLS = await loadHls();
+      if (!HLS) {
+        // Native HTML5 HLS fallback (Safari / newer Chrome)
+        this.el.src = this._currentUrl;
+        this.el.load();
+        await this.el.play();
+        return;
       }
+
+      if (!this.hlsInstance) {
+        this.hlsInstance = new HLS({
+          enableNativeHls: true,
+          maxBufferLength: 3,
+          maxFragmentBufferLength: 1,
+        });
+        this.hlsInstance.loadSource(this._currentUrl);
+        this.hlsInstance.attachMedia(this.el);
+      } else {
+        this.hlsInstance.loadSource(this._currentUrl);
+      }
+      await this.el.play().catch(() => undefined);
+    } catch (err) {
+      console.error("[HLSPlayer] playing() failed:", err);
+      throw err;
     }
-  }
-
-  addSubtitle(content: string, label: string): void {
-    this.clearSubtitle();
-    const blob = new Blob([content], { type: "text/vtt" });
-    this.subtitleUrl = URL.createObjectURL(blob);
-    const track = document.createElement("track");
-    track.kind = "subtitles";
-    track.label = label;
-    track.srclang = "en";
-    track.src = this.subtitleUrl;
-    this.video.appendChild(track);
-    track.addEventListener("load", () => {
-      this.video.textTracks[0]!.mode = "showing";
-    });
-  }
-
-  addSubtitleUrl(url: string, label: string): void {
-    this.clearSubtitle();
-    const track = document.createElement("track");
-    track.kind = "subtitles";
-    track.label = label;
-    track.srclang = "en";
-    track.src = url;
-    this.video.appendChild(track);
-    track.addEventListener("load", () => {
-      this.video.textTracks[0]!.mode = "showing";
-    });
-  }
-
-  play(): void {
-    void this.video.play().catch(() => this.showTapToPlay());
   }
 
   pause(): void {
-    this.video.pause();
+    this.el.pause();
+    if (this.hlsInstance) {
+      (this.hlsInstance as any).pause();
+    }
   }
 
   seek(time: number): void {
-    if (Number.isFinite(time)) this.video.currentTime = Math.max(0, time);
-  }
-
-  setVolume(v: number): void {
-    this.video.volume = Math.min(1, Math.max(0, v));
-    this.video.muted = v === 0;
+    this.el.currentTime = time;
+    if (this.hlsInstance) {
+      (this.hlsInstance as any).seek(time);
+    }
   }
 
   stop(): void {
-    this.hls?.destroy();
-    this.hls = null;
-    this.clearSubtitle();
-    this.video.removeAttribute("src");
-    this.video.load();
-    this.video.classList.remove("active");
+    if (this.hlsInstance) {
+      try {
+        (this.hlsInstance as any).destroy();
+      } catch {
+        /* already gone */
+      }
+      this.hlsInstance = null;
+    }
+    this.removeVttTracks();
+    this.el.removeAttribute("src");
+    this.el.srcObject = null;
+    this.el.load();
+    this._currentUrl = "";
+  }
+
+  url(newUrl: string): void {
+    this._currentUrl = newUrl;
+    this.load(newUrl);
+  }
+
+  volume(v: number): void {
+    this.el.volume = v;
+  }
+
+  addSubtitle(vtt: string, label = "Subtitles"): void {
+    this.addVttTrack(vtt, label);
+  }
+
+  async addSubtitleUrl(url: string, label = "Subtitles"): Promise<void> {
+    try {
+      const resp = await fetch(url);
+      const vttText = await resp.text();
+      this.addVttTrack(vttText, label);
+    } catch {
+      console.warn("[HLSPlayer] Could not load subtitle:", url);
+    }
+  }
+
+  private removeVttTracks(): void {
+    for (const t of this.vttTracks) {
+      try {
+        t.remove();
+      } catch {
+        /* track already detached */
+      }
+    }
+    this.vttTracks = [];
+  }
+
+  private addVttTrack(vtt: string, label: string): void {
+    const blob = new Blob([vtt], { type: "text/vtt" });
+    const blobUrl = URL.createObjectURL(blob);
+    // <track> elements are children of the <video>, not entries in a
+    // `video.textTracks` list — addTrack()/removeTrack() do not exist.
+    const track = document.createElement("track") as HTMLTrackElement;
+    track.src = blobUrl;
+    track.kind = "subtitles";
+    track.srclang = "en";
+    track.label = label;
+    track.default = label === "Subtitles";
+    this.el.appendChild(track);
+    this.vttTracks.push(track);
+  }
+
+  private load(src: string): void {
+    if (this.hlsInstance) {
+      this.hlsInstance.loadSource(src);
+    } else {
+      this.el.src = src;
+      this.el.load();
+    }
+  }
+}
+
+// ── MP4 Player ─────────────────────────────────────────────────────────
+
+class InternalMpxPlayer {
+  private el: HTMLVideoElement;
+  private _currentUrl: string = "";
+  private vttTracks: HTMLTrackElement[] = [];
+
+  constructor(url: string, videoEl: HTMLVideoElement) {
+    this.el = videoEl;
+    this.el.setAttribute("autoplay", "");
+    this.el.setAttribute("playsinline", "");
+    this.el.setAttribute("preload", "auto");
+    this.el.removeAttribute("controls");
+    this.el.style.width = "100%";
+    this.el.style.height = "100%";
+    this.el.style.display = "block";
+    this.el.style.padding = "0";
+
+    this._currentUrl = url;
+    this.el.src = url;
+    this.el.load();
+    this.el.play().catch(() => undefined);
+  }
+
+  get currentUrl() {
+    return this._currentUrl;
+  }
+
+  get video() {
+    return this.el;
+  }
+
+  playing(): void {
+    this.el.play().catch(() => undefined);
+  }
+
+  pause(): void {
+    this.el.pause();
+  }
+
+  seek(time: number): void {
+    this.el.currentTime = time;
+  }
+
+  stop(): void {
+    this.removeVttTracks();
+    this.el.removeAttribute("src");
+    this.el.srcObject = null;
+    this.el.load();
+    this._currentUrl = "";
+  }
+
+  url(newUrl: string): void {
+    this._currentUrl = newUrl;
+    this.el.src = newUrl;
+    this.el.load();
+  }
+
+  volume(v: number): void {
+    this.el.volume = v;
+  }
+
+  setVolume(v: number): void {
+    this.volume(v);
+  }
+
+  addSubtitle(vtt: string, label = "Subtitles"): void {
+    this.addVttTrack(vtt, label);
+  }
+
+  async addSubtitleUrl(url: string, label = "Subtitles"): Promise<void> {
+    try {
+      const resp = await fetch(url);
+      const vttText = await resp.text();
+      this.addVttTrack(vttText, label);
+    } catch {
+      console.warn("[MP4Player] Could not load subtitle:", url);
+    }
+  }
+
+  private removeVttTracks(): void {
+    for (const t of this.vttTracks) {
+      try {
+        t.remove();
+      } catch {
+        /* track already detached */
+      }
+    }
+    this.vttTracks = [];
+  }
+
+  private addVttTrack(vtt: string, label: string): void {
+    const blob = new Blob([vtt], { type: "text/vtt" });
+    const blobUrl = URL.createObjectURL(blob);
+    // <track> elements are children of the <video>, not entries in a
+    // `video.textTracks` list — addTrack()/removeTrack() do not exist.
+    const track = document.createElement("track") as HTMLTrackElement;
+    track.src = blobUrl;
+    track.kind = "subtitles";
+    track.srclang = "en";
+    track.label = label;
+    track.default = label === "Subtitles";
+    this.el.appendChild(track);
+    this.vttTracks.push(track);
+  }
+}
+
+// ── WebRTC Player ──────────────────────────────────────────────────────
+
+class InternalWebRtcPlayer {
+  private el: HTMLVideoElement;
+  private _currentUrl: string = "";
+  private vttTracks: HTMLTrackElement[] = [];
+
+  constructor(videoEl: HTMLVideoElement) {
+    this.el = videoEl;
+    this.el.setAttribute("autoplay", "");
+    this.el.setAttribute("playsinline", "");
+    this.el.setAttribute("preload", "auto");
+    this.el.removeAttribute("controls");
+    this.el.style.width = "100%";
+    this.el.style.height = "100%";
+    this.el.style.display = "block";
+    this.el.style.padding = "0";
+  }
+
+  get currentUrl() {
+    return this._currentUrl;
+  }
+
+  get video() {
+    return this.el;
+  }
+
+  async url(newUrl: string): Promise<void> {
+    this._currentUrl = newUrl;
+  }
+
+  /**
+   * Play a plain media URL (e.g. the blob: URL of a file transferred over the
+   * DataChannel). Mirrors replace the live MediaStream, so the object URL has
+   * to be dropped first — otherwise the <video> keeps the old stream and the
+   * transferred file never appears.
+   */
+  async playFile(newUrl: string): Promise<void> {
+    this._currentUrl = newUrl;
+    this.el.srcObject = null;
+    this.el.src = newUrl;
+    this.el.load();
+    await this.el.play().catch(() => undefined);
+  }
+
+  playing(): void {}
+  pause(): void {}
+  seek(): void {}
+
+  stop(): void {
+    this.removeVttTracks();
+    this.el.removeAttribute("src");
+    this.el.srcObject = null;
+    this.el.load();
+    this._currentUrl = "";
+  }
+
+  volume(v: number): void {
+    this.el.volume = v;
+  }
+
+  setVolume(v: number): void {
+    this.volume(v);
+  }
+
+  addSubtitle(vtt: string, label = "Subtitles"): void {
+    this.addVttTrack(vtt, label);
+  }
+
+  async addSubtitleUrl(url: string, label = "Subtitles"): Promise<void> {
+    try {
+      const resp = await fetch(url);
+      const vttText = await resp.text();
+      this.addVttTrack(vttText, label);
+    } catch {
+      console.warn("[WebRtcPlayer] Could not load subtitle:", url);
+    }
+  }
+
+  private removeVttTracks(): void {
+    for (const t of this.vttTracks) {
+      try {
+        t.remove();
+      } catch {
+        /* track already detached */
+      }
+    }
+    this.vttTracks = [];
+  }
+
+  private addVttTrack(vtt: string, label: string): void {
+    const blob = new Blob([vtt], { type: "text/vtt" });
+    const blobUrl = URL.createObjectURL(blob);
+    // <track> elements are children of the <video>, not entries in a
+    // `video.textTracks` list — addTrack()/removeTrack() do not exist.
+    const track = document.createElement("track") as HTMLTrackElement;
+    track.src = blobUrl;
+    track.kind = "subtitles";
+    track.srclang = "en";
+    track.label = label;
+    track.default = label === "Subtitles";
+    this.el.appendChild(track);
+    this.vttTracks.push(track);
   }
 
   attachStream(stream: MediaStream): void {
-    this.stop();
-    this.show();
-    this.video.srcObject = stream;
-    void this.video.play().catch(() => this.showTapToPlay());
-  }
-
-  private clearSubtitle(): void {
-    if (this.subtitleUrl) {
-      URL.revokeObjectURL(this.subtitleUrl);
-      this.subtitleUrl = null;
+    if (!this.el.srcObject) {
+      this.el.srcObject = stream;
+      this.el.play().catch(() => undefined);
     }
-    for (const t of [...this.video.querySelectorAll("track")]) t.remove();
   }
+}
 
-  private showTapToPlay(): void {
-    const overlay = document.getElementById("tap-to-play");
-    if (!overlay) return;
-    overlay.classList.remove("hidden");
-    overlay.onclick = () => {
-      overlay.classList.add("hidden");
-      this.video.muted = false;
-      void this.video.play().catch(() => undefined);
-    };
-  }
+// ── Unified Player Interface ───────────────────────────────────────────
 
-  private emitState(): void {
-    this.onStateChange(!this.video.paused, this.video.currentTime, this.video.duration || 0);
+export type PlayerType = "hls" | "mp4" | "webrtc";
+
+export interface ReceiverPlayer {
+  readonly type: PlayerType;
+  readonly currentUrl: string;
+  /** The <video> element this player drives. */
+  readonly video: HTMLVideoElement;
+  /** HLS playback is async (hls.js load), MP4/WebRTC are sync — hence the union. */
+  readonly playing: () => void | Promise<void>;
+  readonly pause: () => void;
+  readonly seek: (time: number) => void;
+  readonly stop: () => void;
+  readonly url: (newUrl: string) => void;
+  readonly element: HTMLElement;
+  readonly volume: (v: number) => void;
+  readonly setVolume: (v: number) => void;
+  addSubtitle?: (vtt: string, label?: string) => void;
+  addSubtitleUrl?: (url: string, label?: string) => Promise<void>;
+  attachStream?: (s: MediaStream) => void;
+  load?: (url: string, mime?: string) => Promise<void>;
+}
+
+// ── Factory ────────────────────────────────────────────────────────────
+
+export function createPlayer(
+  type: PlayerType,
+  url: string,
+  videoEl: HTMLVideoElement,
+  opts?: { onReady?: () => void; onError?: (e: Error) => void }
+): ReceiverPlayer {
+  switch (type) {
+    case "hls": {
+      const instance = new InternalHlsPlayer(url, videoEl);
+      return {
+        type,
+        currentUrl: url,
+        video: instance.video,
+        playing: async () => instance.playing(),
+        pause: () => instance.pause(),
+        seek: (t) => instance.seek(t),
+        stop: () => instance.stop(),
+        url: (u) => instance.url(u),
+        element: instance.video,
+        volume: (v) => instance.volume(v),
+        setVolume: (v) => instance.volume(v),
+        addSubtitle: (vtt, label) => instance.addSubtitle(vtt, label),
+        addSubtitleUrl: (u, l) => instance.addSubtitleUrl(u, l),
+        load: async (newUrl, mime) => {
+          instance.url(newUrl);
+          await instance.playing();
+          opts?.onReady?.();
+        },
+      };
+    }
+    case "mp4": {
+      const instance = new InternalMpxPlayer(url, videoEl);
+      return {
+        type,
+        currentUrl: url,
+        video: instance.video,
+        playing: () => instance.playing(),
+        pause: () => instance.pause(),
+        seek: (t) => instance.seek(t),
+        stop: () => instance.stop(),
+        url: (u) => instance.url(u),
+        element: instance.video,
+        volume: (v) => instance.volume(v),
+        setVolume: (v) => instance.setVolume(v),
+        addSubtitle: (vtt, label) => instance.addSubtitle(vtt, label),
+        addSubtitleUrl: (u, l) => instance.addSubtitleUrl(u, l),
+        load: async (newUrl, mime) => {
+          instance.url(newUrl);
+          opts?.onReady?.();
+        },
+      };
+    }
+    case "webrtc": {
+      const instance = new InternalWebRtcPlayer(videoEl);
+      return {
+        type,
+        currentUrl: url,
+        video: instance.video,
+        playing: () => instance.playing(),
+        pause: () => instance.pause(),
+        seek: () => instance.seek(),
+        stop: () => instance.stop(),
+        url: (u) => instance.url(u),
+        element: instance.video,
+        volume: (v) => instance.volume(v),
+        setVolume: (v) => instance.setVolume(v),
+        addSubtitle: (vtt, label) => instance.addSubtitle(vtt, label),
+        addSubtitleUrl: (u, l) => instance.addSubtitleUrl(u, l),
+        attachStream: (s) => instance.attachStream(s),
+        load: async (newUrl, mime) => {
+          await instance.playFile(newUrl);
+          opts?.onReady?.();
+        },
+      };
+    }
   }
 }

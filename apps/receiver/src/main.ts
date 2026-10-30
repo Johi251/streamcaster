@@ -1,197 +1,710 @@
 /**
- * StreamCaster receiver entry point.
- * URL shape: /r/?code=<ROOMCODE> (a /r/<ROOMCODE> path segment is still read
- * for older links). The query form is the canonical one because it needs no
- * server-side rewrite: Cloudflare Pages serves /r/ as a real file, while
- * /r/<CODE> is not a file and falls through to the sender app on the host we
- * deploy to — a reload there would silently swap the TV into the phone UI.
- * Displays code + QR, connects to signaling, executes sender commands.
+ * StreamCaster Receiver — Fullstack-architektur, Clean Architecture.
+ *
+ * Architecture roles:
+ *   Controller  main.ts — DOM events, signal routing, UI state orchestration
+ *   Service     player/player.ts — HLS / MP4 / WebRTC playback encapsulated
+ *   Infra       webrtc/receive.ts — RTCPeerConnection + DataChannel file-transfer
+ *   Infra       signaling.ts — SignalingClient wrapper
+ *
+ * Signal flow:
+ *   Server → handleCommand → updateUI  (single source of truth)
+ *   DOM events → command via signaling
+ *
+ * Works on ANY browser with WebRTC + HLS support:
+ *   Fire TV (Silk), iPhone Safari (URL-cast only, no screen mirror),
+ *   Android Chrome, Desktop Chrome/Edge.
  */
+
 import {
-  SignalingClient,
-  probeCapabilities,
+  generateRoomCode,
   isValidRoomCode,
   normalizeRoomCode,
-  generateRoomCode,
   type CommandOp,
-  type ServerMessage,
   type PlaybackState,
+  type ReceiverCaps,
+  type ServerMessage,
+  type SignalingStatus,
 } from "@streamcaster/shared";
+import { ReceiverClient } from "./signaling.js";
+import { createPlayer, type ReceiverPlayer, type PlayerType } from "./player/player.js";
+import { ReceiverPeer } from "./webrtc/receive.js";
 import QRCode from "qrcode";
-import { ReceiverPlayer } from "./player/player.js";
-import { ReceiverPeer, type FileMeta } from "./webrtc/receive.js";
 
-// --------------------------------------------------------------------- boot
-
-const params = new URLSearchParams(location.search);
-const pathCode = normalizeRoomCode(location.pathname.split("/").pop() ?? "");
-const queryCode = normalizeRoomCode(params.get("code") ?? "");
-let code = isValidRoomCode(pathCode) ? pathCode : isValidRoomCode(queryCode) ? queryCode : "";
+// ═══════════════════════════════════════════════════════════
+//  § 1  Constants & env
+// ═══════════════════════════════════════════════════════════
 
 const SIGNALING_URL =
   (import.meta.env.VITE_SIGNALING_URL as string | undefined) ??
-  (params.get("ws") as string | undefined) ??
+  (new URLSearchParams(location.search).get("ws") as string | undefined) ??
   "https://streamcaster-signaling.streamcaster.workers.dev";
 
-const video = document.getElementById("player") as HTMLVideoElement;
-const idle = document.getElementById("idle") as HTMLDivElement;
-const statusEl = document.getElementById("status") as HTMLParagraphElement;
-const codeEl = document.getElementById("room-code") as HTMLDivElement;
-const qrEl = document.getElementById("qr") as HTMLDivElement;
-const toastEl = document.getElementById("toast") as HTMLDivElement;
+const ICE_SERVERS = [{ urls: ["stun:stun.l.google.com:19302"] }];
 
-// Session state — declared BEFORE the boot block below, because start()
-// (invoked synchronously during module evaluation) assigns `client`.
-let client: SignalingClient | null = null;
-let peer: ReceiverPeer | null = null;
+// ═══════════════════════════════════════════════════════════
+//  § 2  App state — single source of truth
+// ═══════════════════════════════════════════════════════════
 
+export interface AppState {
+  signalingStatus: SignalingStatus;
+  peerStatus: "none" | "waiting" | "connected";
+  roomCode: string;
+  /** Which surface is on screen: the idle card or the player. */
+  phase: "idle" | "playing";
+  playing: boolean;
+  position: number;
+  duration: number;
+  volume: number;
+  title: string;
+  playerUrl: string;
+}
+
+const initialState: AppState = {
+  signalingStatus: "closed",
+  peerStatus: "none",
+  roomCode: "",
+  phase: "idle",
+  playing: false,
+  position: 0,
+  duration: 0,
+  volume: 1,
+  title: "",
+  playerUrl: "",
+};
+
+let state = { ...initialState };
+let qrcodePromise: Promise<string> | null = null;
+let signalingClient: ReceiverClient | null = null;
+let receiverPeer: ReceiverPeer | null = null;
+let player: ReceiverPlayer | null = null;
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
-function toast(msg: string): void {
-  toastEl.textContent = msg;
-  toastEl.classList.remove("hidden");
+let toastEl: HTMLElement | null = null;
+
+// ═══════════════════════════════════════════════════════════
+//  § 3  DOM references — lazy (null until mounted)
+// ═══════════════════════════════════════════════════════════
+
+interface DomRefs {
+  statusEl: HTMLElement;
+  codeEl: HTMLElement;
+  idleEl: HTMLElement;
+  idleTitleEl: HTMLElement;
+  idleUrlEl: HTMLElement;
+  toastEl: HTMLElement;
+  videoEl: HTMLVideoElement;
+  seekContainerEl: HTMLElement;
+  seekBarEl: HTMLInputElement;
+  currentPosEl: HTMLElement;
+  totalDurationEl: HTMLElement;
+  volumeRowEl: HTMLElement;
+  volumeBarEl: HTMLInputElement;
+  volumeLabelEl: HTMLElement;
+  playPauseOverlayEl: HTMLElement;
+  playPauseIconEl: HTMLElement;
+  controlsEl: HTMLElement;
+  seekBackEl: HTMLButtonElement;
+  seekFwdEl: HTMLButtonElement;
+  connectBtnEl: HTMLButtonElement;
+}
+
+const DOM: DomRefs = {} as DomRefs;
+
+/** Typed query: fails loudly at mount time instead of silently returning null. */
+function q<T extends HTMLElement>(id: string): T {
+  const found = document.getElementById(id);
+  if (!found) throw new Error(`Missing DOM element #${id}`);
+  return found as T;
+}
+
+function resolveDOM() {
+  DOM.statusEl = q("status");
+  DOM.codeEl = q("room-code");
+  DOM.idleEl = q("idle");
+  DOM.idleTitleEl = q("idle-title");
+  DOM.idleUrlEl = q("idle-url");
+  DOM.toastEl = q("toast");
+  DOM.videoEl = q<HTMLVideoElement>("player");
+  DOM.seekContainerEl = q("seek-container");
+  DOM.seekBarEl = q<HTMLInputElement>("seek");
+  DOM.currentPosEl = q("current-pos");
+  DOM.totalDurationEl = q("total-duration");
+  DOM.volumeRowEl = q("volume-row");
+  DOM.volumeBarEl = q<HTMLInputElement>("volume");
+  DOM.volumeLabelEl = q("volume-label");
+  DOM.playPauseOverlayEl = q("play-pause-overlay");
+  DOM.playPauseIconEl = q("play-pause-icon");
+  DOM.controlsEl = q("controls");
+  DOM.seekBackEl = q<HTMLButtonElement>("seek-back");
+  DOM.seekFwdEl = q<HTMLButtonElement>("seek-forward");
+  DOM.connectBtnEl = q<HTMLButtonElement>("connect-btn");
+}
+
+// ═══════════════════════════════════════════════════════════
+//  § 4  Room code — parse, generate, persist
+// ═══════════════════════════════════════════════════════════
+
+function parseRoomCode() {
+  const pathCode = normalizeRoomCode(
+    location.pathname.replace(new RegExp(/^\/r\/.*/), "")
+  );
+  const queryCode = normalizeRoomCode(
+    new URLSearchParams(location.search).get("code") ?? ""
+  );
+
+  if (isValidRoomCode(pathCode)) return pathCode;
+  if (isValidRoomCode(queryCode)) return queryCode;
+  return "";
+}
+
+function ensureRoomCode() {
+  if (state.roomCode) return;
+  state.roomCode = generateRoomCode();
+  history.replaceState(
+    null,
+    "StreamCaster",
+    `${location.pathname}/r/${state.roomCode}`
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  § 5  Helpers — toast, time, URL parsing
+// ═══════════════════════════════════════════════════════════
+
+function toast(message: string) {
+  if (!DOM.toastEl) return;
+  DOM.toastEl.textContent = message;
+  DOM.toastEl.classList.add("visible");
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.add("hidden"), 4000);
+  toastTimer = setTimeout(() => DOM.toastEl.classList.remove("visible"), 3500);
 }
 
-if (!code) {
-  // No code in URL → the receiver generates its own room code, displays it,
-  // and connects. This is the normal flow when you open /r/ directly on a TV
-  // browser (Fire TV Silk, Smart TV browser, Echo Show, etc.): you read the
-  // code off the screen and type it into the sender on your phone.
-  code = generateRoomCode();
-  // Reflect the code in the URL so a page reload restores the same room
-  // (instead of generating a new code and orphaning the sender). Query form:
-  // /r/?code=XXXXXX always resolves to the real r/index.html file.
-  history.replaceState(null, "", `./?code=${code}`);
-}
-codeEl.textContent = code;
-void renderQr(code);
-start();
-
-async function renderQr(code: string): Promise<void> {
-  const senderUrl = `${location.origin}/#join=${code}`;
-  const canvas = document.createElement("canvas");
-  await QRCode.toCanvas(canvas, senderUrl, { width: 180, margin: 0 });
-  qrEl.replaceChildren(canvas);
+export function formatTime(seconds: number): string {
+  const m = Math.floor(Math.abs(seconds) / 60);
+  const s = Math.floor(Math.abs(seconds) % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// ------------------------------------------------------------------ session
-
-const state: PlaybackState = {};
-let stateDirty = false;
-
-const player = new ReceiverPlayer(
-  video,
-  (playing, position, duration) => {
-    state.paused = !playing;
-    state.position = position;
-    state.duration = duration || state.duration;
-    stateDirty = true;
-  },
-  toast
-);
-
-// Periodic state push (receiver -> sender remote UI)
-setInterval(() => {
-  if (!stateDirty || !client) return;
-  stateDirty = false;
-  client.send({ t: "state", state });
-}, 1000);
-
-function sendSignal(kind: "answer" | "ice", payload: unknown): void {
-  client?.send({ t: "webrtc", kind, payload });
+function parseUrl(url: string) {
+  try {
+    const u = new URL(url);
+    return {
+      host: u.hostname.replace(/^www\./, ""),
+      origin: u.origin,
+      title: u.pathname.split("/").pop() ?? u.hostname,
+    };
+  } catch {
+    return { host: url, origin: url, title: url };
+  }
 }
 
-function start(): void {
-  client = new SignalingClient(SIGNALING_URL, {
+// ═══════════════════════════════════════════════════════════
+//  § 6  Signaling — connect, handle messages
+// ═══════════════════════════════════════════════════════════
+
+async function connectSignaling() {
+  const caps: ReceiverCaps = {
+    rtc: typeof RTCPeerConnection !== "undefined",
+    mse: typeof MediaSource !== "undefined",
+    canPlay: {},
+    userAgent: navigator.userAgent,
+  };
+
+  signalingClient = new ReceiverClient(SIGNALING_URL, {
     onMessage: handleMessage,
-    onStatus: (s) => {
-      if (s === "sse") statusEl.textContent = "Connected (compatibility mode)";
-      else if (s === "ws") statusEl.textContent = "Connected";
-      else if (s === "closed" || s === "error") statusEl.textContent = "Disconnected";
+    onStatus: (s: SignalingStatus) => {
+      state.signalingStatus = s;
+      if (DOM.toastEl) DOM.toastEl.textContent = "";
+      render();
+    },
+    onError: (err: Error) => {
+      state.signalingStatus = "error";
+      if (DOM.toastEl) toast(`Signal connection failed: ${err.message}`);
+      render();
     },
   });
-  client.connect(code, "receiver", probeCapabilities());
+
+  signalingClient.connect(state.roomCode, "receiver", caps);
 }
 
-function handleMessage(msg: ServerMessage): void {
+async function handleMessage(msg: ServerMessage) {
   switch (msg.t) {
     case "joined":
-      statusEl.textContent = "Waiting for sender…";
+      state.peerStatus = "waiting";
+      render();
       break;
+
     case "peer-joined":
-      statusEl.textContent = "Sender connected";
+      state.peerStatus = "connected";
+      render();
+      renderConnected();
       break;
+
     case "peer-left":
-      statusEl.textContent = "Sender disconnected";
+      state.peerStatus = "none";
+      player?.stop();
+      player = null;
+      receiverPeer?.clear();
+      receiverPeer = null;
+      renderIdle("Sender left", "");
       break;
+
     case "cmd":
-      void execute(msg.op);
+      handleCommand(msg.op);
       break;
+
     case "webrtc":
-      peer ??= new ReceiverPeer(player, sendSignal, toast, (playing, position, duration) => {
-        state.paused = !playing;
-        state.position = position;
-        state.duration = duration || state.duration;
-        stateDirty = true;
-      });
-      void peer.handleSignal(msg.kind, msg.payload);
+      // The mirror can arrive before any "load" command -> create the player.
+      if (!player) player = createPlayer("webrtc", "", DOM.videoEl);
+      // Reuse the peer: a fresh ReceiverPeer per message would drop the
+      // connection every time an ICE candidate came in.
+      if (!receiverPeer) {
+        receiverPeer = new ReceiverPeer(
+          player,
+          (kind, payload) => signalingClient?.sendSignal(kind, payload),
+          toast,
+          (playing, position, duration) => {
+            state.playing = playing;
+            state.position = position;
+            state.duration = duration;
+            render();
+          },
+        );
+      }
+      void receiverPeer.handleSignal(msg.kind, msg.payload);
       break;
+
     case "state":
-      // sender-acknowledged state (unused on receiver side for now)
+      updateRemoteState(msg.state);
       break;
+
     case "error":
       toast(`Signaling error: ${msg.message}`);
       break;
+
+    default:
+      // Unknown message — log for debugging
+      break;
   }
 }
 
-async function execute(op: CommandOp): Promise<void> {
+function updateRemoteState(remote: PlaybackState) {
+  if (remote.paused !== undefined) {
+    state.playing = !remote.paused;
+    if (state.playing) playPlayer();
+    else pausePlayer();
+  }
+  if (remote.duration !== undefined) state.duration = remote.duration;
+  if (remote.position !== undefined) {
+    state.position = remote.position;
+    updateSeekBar();
+  }
+  if (remote.volume !== undefined) {
+    state.volume = remote.volume;
+    DOM.volumeBarEl.value = (remote.volume * 100).toFixed(0);
+    DOM.volumeLabelEl.textContent = `${Math.round(remote.volume * 100)}%`;
+  }
+  if (remote.title) state.title = remote.title;
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  § 7  Command handler — bridge signaling → UI/player
+// ═══════════════════════════════════════════════════════════
+
+function handleCommand(op: CommandOp) {
   switch (op.name) {
     case "load":
-      state.currentUrl = op.url;
-      state.title = op.title;
-      idle.classList.add("hidden");
-      await player.load(op.url, op.mime);
+      loadPlayer(op.url, op.title ?? parseUrl(op.url).title);
       break;
+
     case "play":
-      player.play();
+      playPlayer();
       break;
+
     case "pause":
-      player.pause();
+      pausePlayer();
       break;
+
     case "seek":
-      player.seek(op.time);
+      state.position = op.time;
+      player?.seek(op.time);
+      updateSeekBar();
       break;
+
     case "volume":
-      player.setVolume(op.value);
+      state.volume = op.value;
+      player?.volume(op.value);
+      DOM.volumeBarEl.value = (op.value * 100).toFixed(0);
+      DOM.volumeLabelEl.textContent = `${Math.round(op.value * 100)}%`;
       break;
+
     case "stop":
-      state.currentUrl = undefined;
-      player.stop();
-      peer?.close();
-      idle.classList.remove("hidden");
+      stopPlayer();
       break;
-    case "subtitle":
-      if (op.content) player.addSubtitle(op.content, op.label ?? "Subtitles");
-      else if (op.url) player.addSubtitleUrl(op.url, op.label ?? "Subtitles");
-      break;
+
     case "file-meta":
-      peer ??= new ReceiverPeer(player, sendSignal, toast, (playing, position, duration) => {
-        state.paused = !playing;
-        state.position = position;
-        state.duration = duration || state.duration;
-        stateDirty = true;
-      });
-      peer.setFileMeta({ name: op.filename, size: op.size, mime: op.mime } satisfies FileMeta);
+      // Handled by ReceiverPeer DataChannel
       break;
+
     case "stream-start":
-      idle.classList.add("hidden");
-      toast(`Receiving ${op.kind} stream…`);
+      renderIdle(
+        op.kind === "screen"
+          ? "Screen Mirroring (live)"
+          : "Camera Capture (live)",
+        ""
+      );
       break;
+
     case "stream-stop":
-      player.stop();
-      idle.classList.remove("hidden");
+      stopPlayer();
+      break;
+
+    default:
+      // Unknown command — ignore for now
       break;
   }
 }
+
+// ═══════════════════════════════════════════════════════════
+//  § 8  Player factory & control
+// ═══════════════════════════════════════════════════════════
+
+async function loadPlayer(url: string, title: string) {
+  state.title = title;
+  state.playerUrl = url;
+
+  // Drop the previous source before the new one is attached.
+  player?.stop();
+  player = null;
+
+  DOM.videoEl.style.display = "block";
+  DOM.playPauseOverlayEl.classList.remove("visible");
+
+  try {
+    // Determine type from URL
+    const type: PlayerType =
+      url.startsWith("ws") || url.startsWith("wss")
+        ? "webrtc"
+        : url.endsWith(".m3u8") || url.includes("/hls")
+          ? "hls"
+          : "mp4";
+
+    player = createPlayer(type, url, DOM.videoEl);
+    state.playing = true;
+    renderPlaying();
+    void player.playing();
+  } catch (err: any) {
+    toast(`Failed to load media: ${err.message}`);
+    DOM.videoEl.style.display = "none";
+    renderIdle("Media load failed", url);
+  }
+}
+
+function playPlayer() {
+  state.playing = true;
+  if (player) player.playing();
+}
+
+function pausePlayer() {
+  state.playing = false;
+  if (player) player.pause();
+}
+
+function stopPlayer() {
+  state.playing = false;
+  player?.stop();
+  player = null;
+  DOM.videoEl.style.display = "none";
+  DOM.playPauseOverlayEl.classList.remove("visible");
+  DOM.seekContainerEl.style.display = "none";
+  renderIdle("No video playing", "");
+}
+
+// ═══════════════════════════════════════════════════════════
+//  § 9  Rendering — declarative UI from state
+// ═══════════════════════════════════════════════════════════
+
+function render() {
+  const { signalingStatus, peerStatus } = state;
+
+  // Status chip color
+  DOM.statusEl.className = `chip ${
+    signalingStatus === "closed" || signalingStatus === "error"
+      ? "offline"
+      : signalingStatus === "ws" || signalingStatus === "sse"
+      ? "connected"
+      : "waiting"
+  }`;
+  DOM.statusEl.textContent =
+    peerStatus === "none"
+      ? "Offline"
+      : peerStatus === "waiting"
+      ? "Waiting for sender…"
+      : peerStatus === "connected"
+      ? "Connected"
+      : "";
+
+  // Show/hide idle screen vs player. The phase decides — deriving it from
+  // `state.title` broke as soon as an idle message carried a title
+  // ("No video playing"), which kept the player surface on screen.
+  const showIdle = peerStatus !== "connected" || state.phase === "idle";
+
+  if (showIdle) {
+    DOM.idleEl.style.display = "flex";
+    DOM.videoEl.style.display = "none";
+    DOM.seekContainerEl.style.display = "none";
+    DOM.controlsEl.style.display = "none";
+    DOM.playPauseOverlayEl.classList.remove("visible");
+    DOM.idleTitleEl.textContent =
+      peerStatus === "waiting"
+        ? "Waiting for sender…"
+        : peerStatus === "none"
+        ? "StreamCaster Receiver"
+        : state.title || "StreamCaster";
+    DOM.idleUrlEl.textContent =
+      peerStatus === "waiting"
+        ? `Room: ${state.roomCode}`
+        : peerStatus === "none"
+        ? "Open the sender app on your phone and enter this code"
+        : state.title || "";
+  } else {
+    DOM.idleEl.style.display = "none";
+    DOM.videoEl.style.display = "block";
+    DOM.seekContainerEl.style.display = "flex";
+    DOM.controlsEl.style.display = "flex";
+  }
+}
+
+function renderConnected() {
+  DOM.idleEl.style.display = "flex";
+  DOM.idleTitleEl.textContent = `Connected to room ${state.roomCode}`;
+  DOM.idleUrlEl.textContent = `Room: ${state.roomCode}`;
+  DOM.codeEl.textContent = state.roomCode;
+
+  // QR Code generation (lazy)
+  if (!qrcodePromise && DOM.codeEl) {
+    qrcodePromise = QRCode.toDataURL(`streamcaster://${state.roomCode}`, {
+      width: 150,
+      margin: 1,
+    });
+    qrcodePromise.then(async (dataUrl) => {
+      const img = document.createElement("img");
+      img.src = dataUrl;
+      img.style.opacity = "0";
+      img.style.transition = "opacity 0.5s";
+      DOM.codeEl.style.display = "block";
+      DOM.codeEl.appendChild(img);
+      setTimeout(() => { img.style.opacity = "1"; }, 50);
+    });
+  }
+}
+
+function renderPlaying() {
+  state.phase = "playing";
+  DOM.playPauseOverlayEl.classList.add("visible");
+  DOM.playPauseIconEl.textContent = state.playing ? "⏸" : "▶";
+  DOM.seekContainerEl.style.display = "flex";
+  DOM.controlsEl.style.display = "flex";
+  DOM.totalDurationEl.textContent = formatTime(state.duration);
+  updateSeekBar();
+  render();
+}
+
+function renderIdle(title: string, url: string) {
+  state.phase = "idle";
+  state.title = title;
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  § 10  DOM event binding
+// ═══════════════════════════════════════════════════════════
+
+function bindEvents() {
+  // Seek bar
+  DOM.seekBarEl.addEventListener("input", (e) => {
+    const bar = e.target as HTMLInputElement;
+    const time = (Number(bar.value) / 100) * state.duration;
+    state.position = time;
+    updateSeekBar();
+    player?.seek(time);
+  });
+
+  // Volume
+  DOM.volumeBarEl.addEventListener("input", (e) => {
+    const bar = e.target as HTMLInputElement;
+    state.volume = Number(bar.value) / 100;
+    DOM.volumeLabelEl.textContent = `${Math.round(state.volume * 100)}%`;
+    player?.volume(state.volume);
+  });
+
+  // Play/Pause overlay
+  DOM.playPauseOverlayEl.addEventListener("click", () => {
+    if (state.playing) pausePlayer();
+    else playPlayer();
+  });
+
+  // Quick seek buttons
+  DOM.seekBackEl.addEventListener("click", () => {
+    const newPos = Math.max(0, state.position - 10);
+    state.position = newPos;
+    player?.seek(newPos);
+    updateSeekBar();
+  });
+
+  DOM.seekFwdEl.addEventListener("click", () => {
+    const newPos = Math.min(state.duration, state.position + 10);
+    state.position = newPos;
+    player?.seek(newPos);
+    updateSeekBar();
+  });
+
+  // Connect button (reconnect on error)
+  DOM.connectBtnEl.addEventListener("click", () => {
+    if (signalingClient) {
+      toast("Reconnecting…");
+      connectSignaling();
+    }
+  });
+
+  // Touch gestures for mobile (tap left/right to seek ±30s)
+  let touchStartX: number | null = null;
+  DOM.videoEl.addEventListener("touchstart", (e) => {
+    touchStartX = e.touches[0]?.clientX ?? null;
+  }, { passive: true });
+
+  DOM.videoEl.addEventListener("touchend", (e) => {
+    if (touchStartX === null) return;
+    const touchEndX = e.changedTouches[0]?.clientX ?? 0;
+    const diff = touchEndX - touchStartX;
+
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) {
+        // Swipe right → forward
+        player?.seek(Math.min(state.duration, state.position + 30));
+        toast("⏎ +30s");
+      } else {
+        // Swipe left → backward
+        player?.seek(Math.max(0, state.position - 30));
+        toast("⏪ -30s");
+      }
+    }
+    touchStartX = null;
+  }, { passive: true });
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", (e) => {
+    if (state.peerStatus !== "connected") return;
+
+    switch (e.key) {
+      case "Space":
+        e.preventDefault();
+        if (state.playing) pausePlayer();
+        else playPlayer();
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        player?.seek(Math.max(0, state.position - 10));
+        updateSeekBar();
+        break;
+      case "ArrowRight":
+        e.preventDefault();
+        player?.seek(Math.min(state.duration, state.position + 10));
+        updateSeekBar();
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        state.volume = Math.min(1, state.volume + 0.1);
+        DOM.volumeBarEl.value = (state.volume * 100).toFixed(0);
+        DOM.volumeLabelEl.textContent = `${Math.round(state.volume * 100)}%`;
+        player?.volume(state.volume);
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        state.volume = Math.max(0, state.volume - 0.1);
+        DOM.volumeBarEl.value = (state.volume * 100).toFixed(0);
+        DOM.volumeLabelEl.textContent = `${Math.round(state.volume * 100)}%`;
+        player?.volume(state.volume);
+        break;
+    }
+  });
+
+  // Video container: track position updates
+  DOM.videoEl.addEventListener("timeupdate", () => {
+    const pos = DOM.videoEl.currentTime;
+    if (pos > 0 && pos !== state.position) {
+      state.position = pos;
+      updateSeekBar();
+    }
+  });
+
+  DOM.videoEl.addEventListener("loadedmetadata", () => {
+    state.duration = DOM.videoEl.duration;
+    DOM.totalDurationEl.textContent = formatTime(state.duration);
+    updateSeekBar();
+  });
+}
+
+function updateSeekBar() {
+  if (state.duration === 0) return;
+  DOM.seekBarEl.value = String(Math.round((state.position / state.duration) * 100));
+  DOM.currentPosEl.textContent = formatTime(state.position);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  § 11  Initialization & graceful shutdown
+// ═══════════════════════════════════════════════════════════
+
+async function bootstrap(): Promise<void> {
+  ensureRoomCode();
+  resolveDOM();
+  bindEvents();
+
+  // Register Service Worker for PWA
+  if ("serviceWorker" in navigator) {
+    try {
+      const registration = await navigator.serviceWorker.register(
+        "/service-worker.js"
+      );
+      toast("StreamCaster app installed ✅");
+    } catch {
+      // SW registration failed — proceed normally
+    }
+  }
+
+  // Initial render
+  render();
+  renderIdle("StreamCaster — open sender on another device", "");
+
+  // Connect to signaling server
+  try {
+    await connectSignaling();
+  } catch (err: any) {
+    state.signalingStatus = "error";
+    render();
+    renderIdle(
+      "Connection failed",
+      "Cannot reach signaling server. Try again later."
+    );
+    throw err;
+  }
+}
+
+// Global error handler
+window.addEventListener("error", (e: ErrorEvent) => {
+  console.error("[StreamCaster] Unhandled error:", e.error);
+  toast(`Error: ${e.message}`);
+});
+
+// Unloading: clean up
+window.addEventListener("beforeunload", () => {
+  player?.stop();
+  receiverPeer?.clear();
+});
+
+// ── Launch ──
+bootstrap().catch((err) => {
+  console.error("[StreamCaster] Bootstrap failed:", err);
+  renderIdle("Failed to start", "");
+});

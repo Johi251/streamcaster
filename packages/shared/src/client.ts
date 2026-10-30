@@ -3,13 +3,25 @@
  * Connects via WebSocket; falls back to SSE (receive) + POST /send (transmit)
  * for TV browsers with unreliable WebSocket support (e.g. Fire TV Silk).
  */
-import type { ClientMessage, ReceiverCaps, Role, ServerMessage } from "./protocol.js";
+import type {
+  ClientMessage,
+  ReceiverCaps,
+  Role,
+  ServerMessage,
+  WebRtcSignalKind,
+} from "./protocol.js";
 
 export type SignalingStatus = "connecting" | "ws" | "sse" | "closed" | "error";
 
 export interface SignalingHandlers {
   onMessage: (msg: ServerMessage) => void;
   onStatus: (status: SignalingStatus) => void;
+  /**
+   * Optional: called when the transport fails. The client usually recovers on
+   * its own (WebSocket -> SSE fallback), so this is a *hint* for the UI
+   * ("using compatibility mode"), not a terminal error.
+   */
+  onError?: (err: Error) => void;
 }
 
 const WS_OPEN_TIMEOUT_MS = 5000;
@@ -51,6 +63,11 @@ export class SignalingClient {
         body: JSON.stringify(msg),
       }).catch(() => undefined);
     }
+  }
+
+  /** Send a WebRTC signaling payload (answer / ICE candidate) to the room. */
+  sendSignal(kind: WebRtcSignalKind, payload: unknown): void {
+    this.send({ t: "webrtc", kind, payload });
   }
 
   close(): void {
@@ -102,6 +119,7 @@ export class SignalingClient {
       if (!settled) {
         settled = true;
         clearTimeout(openTimeout);
+        this.handlers.onError?.(new Error("WebSocket failed — falling back to SSE"));
         this.openSse();
       }
     };

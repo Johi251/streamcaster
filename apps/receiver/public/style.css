@@ -1,25 +1,83 @@
+/*
+ * StreamCaster Receiver — Global Theme
+ * Glassmorphism idle screen, dark-by-default, glass controls.
+ *
+ * Architecture: declarative UI driven from state via main.ts render().
+ *
+ * CSS variables → color tokens.
+ * Layout → responsive (mobile 100% → TV 16:9).
+ */
+
+/* ══════════════════════════════════════════════════════════
+   § 1  Color tokens (light-mode ready via :root / :root[data-theme="light"])
+   ══════════════════════════════════════════════════════════ */
+
 :root {
   --bg: #0b0d12;
   --card: rgba(20, 24, 34, 0.78);
+  --card-solid: #141822;
   --text: #e8ebf2;
   --muted: #8a93a6;
   --accent: #4f8cff;
-  --radius: 18px;
+  --accent-2: #8ab4ff;
+  --danger: #ff5f6d;
+  --ok: #7ce38b;
+  --warn: #ffd479;
+  --radius: 16px;
   --glass-blur: saturate(160%) blur(16px);
+  --control-bg: rgba(20, 24, 34, 0.88);
+  --text-size: 15px;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* Light theme override */
+:root[data-theme="light"] {
+  --bg: #f0f2f6;
+  --card: rgba(240, 242, 246, 0.82);
+  --card-solid: #e2e6ef;
+  --text: #1a1d27;
+  --muted: #6b7280;
+  --accent: #3b6fbb;
+  --accent-2: #7aa3ff;
+  --danger: #ef4444;
+  --ok: #22c55e;
+  --warn: #eab300;
+}
+
+/* ══════════════════════════════════════════════════════════
+   § 2  Reset
+   ══════════════════════════════════════════════════════════ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 html, body, #app {
   height: 100%;
+  min-height: 100vh;
   background:
-    radial-gradient(1000px 500px at 70% -20%, rgba(79, 140, 255, 0.12), transparent 60%),
+    radial-gradient(
+      1000px 500px at 70% -20%,
+      rgba(79, 140, 255, 0.12),
+      transparent 60%
+    ),
     var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
 }
+
+/* ══════════════════════════════════════════════════════════
+   § 3  Video player
+   ══════════════════════════════════════════════════════════ */
 
 #player {
   position: absolute;
@@ -28,101 +86,420 @@ html, body, #app {
   height: 100%;
   background: #000;
   display: none;
+  font-size: 0;
+  cursor: none; /* Hide cursor over video */
 }
-#player.active { display: block; }
 
-.idle {
-  position: absolute;
-  inset: 0;
-  display: flex;
+.player-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* ══════════════════════════════════════════════════════════
+   § 4  Idle screen (glassmorphism card)
+   ══════════════════════════════════════════════════════════ */
+
+#idle {
+  display: none;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 24px;
+  width: 100%;
+  height: 100%;
 }
-.idle.hidden { display: none; }
 
 .idle-card {
-  text-align: center;
   background: var(--card);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius);
-  padding: 48px 56px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  animation: idle-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-}
-@keyframes idle-in {
-  from { opacity: 0; transform: translateY(12px) scale(0.98); }
-  to { opacity: 1; transform: none; }
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius);
+  padding: 48px 56px;
+  text-align: center;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .idle-card h1 {
   font-size: 28px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  margin-bottom: 10px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+  color: var(--text);
 }
-.hint { color: var(--muted); margin-bottom: 18px; }
 
+.idle-card p.hint {
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+
+/* Room code display */
 #room-code {
-  font-size: 56px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: var(--accent);
-  margin-bottom: 18px;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 32px rgba(79, 140, 255, 0.45);
+  font-family: "SF Mono", "SF Pro Text", "Consolas", "Monaco", monospace;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  background: var(--accent);
+  color: #fff;
+  padding: 12px 28px;
+  border-radius: 10px;
+  line-height: 1.2;
+  margin: 0 auto 28px;
+  text-transform: uppercase;
+  min-width: 180px;
+  display: none;
 }
 
-#qr { display: flex; justify-content: center; margin-bottom: 14px; }
-#qr canvas, #qr img { border-radius: 12px; background: #fff; padding: 8px; }
+#room-code img {
+  display: block;
+  margin: 0 auto;
+  width: 150px;
+  height: auto;
+  border-radius: 8px;
+}
 
-.status { color: var(--muted); font-size: 14px; }
+/* Status text */
+.status, .status-text {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 8px;
+}
 
-.tap {
+.chip {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.chip.offline {
+  background: rgba(255, 95, 109, 0.15);
+  color: var(--danger);
+}
+
+.chip.connected {
+  background: rgba(126, 227, 139, 0.15);
+  color: var(--ok);
+}
+
+.chip.waiting {
+  background: rgba(255, 212, 121, 0.15);
+  color: var(--warn);
+}
+
+/* Connect button */
+#connect-btn {
+  margin-top: 16px;
+  padding: 10px 22px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+
+#connect-btn:hover {
+  background: var(--accent-2);
+  transform: translateY(-1px);
+}
+
+/* ══════════════════════════════════════════════════════════
+   § 5  Controls bar (bottom, glass)
+   ══════════════════════════════════════════════════════════ */
+
+#controls {
+  display: none;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--control-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 16px 24px;
+  z-index: 10;
+  animation: fadeInUp 0.3s ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 100%;
+}
+
+/* Seek bar (flex: 1, takes available space) */
+.seek-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+}
+
+.seek-container input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.seek-container input[type="range"]:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.seek-container input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  cursor: pointer;
+  transition: transform 0.15s;
+  box-shadow: 0 0 8px rgba(79, 140, 255, 0.5);
+}
+
+.seek-container input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.seek-container input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(79, 140, 255, 0.5);
+}
+
+.seek-time {
+  font-size: 12px;
+  font-family: monospace;
+  min-width: 54px;
+  text-align: center;
+  color: var(--muted);
+  user-select: none;
+}
+
+/* Volume controls */
+.volume-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+}
+
+.volume-row svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.volume-row input[type="range"] {
+  width: 60px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.volume-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+/* ══════════════════════════════════════════════════════════
+   § 6  Play/Pause overlay (center, tap to toggle)
+   ══════════════════════════════════════════════════════════ */
+
+#play-pause-overlay {
+  display: none; /* Hidden by default */
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(4px);
-  font-size: 32px;
-  font-weight: 700;
+  background: rgba(0, 0, 0, 0.25);
   cursor: pointer;
-  z-index: 10;
+  transition: opacity 0.2s;
+  opacity: 0;
 }
-.tap.hidden { display: none; }
 
-.toast {
-  position: absolute;
-  bottom: 24px;
+#play-pause-overlay.visible {
+  opacity: 1;
+  display: flex;
+}
+
+.play-pause-icon {
+  font-size: 72px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s;
+}
+
+#play-pause-overlay:hover .play-pause-icon {
+  transform: scale(1.1);
+}
+
+/* ══════════════════════════════════════════════════════════
+   § 7  Toast notifications
+   ══════════════════════════════════════════════════════════ */
+
+#toast {
+  display: none;
+  position: fixed;
+  top: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(20, 24, 34, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-solid);
   color: var(--text);
-  padding: 12px 20px;
+  padding: 12px 24px;
   border-radius: 12px;
   font-size: 14px;
-  z-index: 20;
-  max-width: 80%;
-  text-align: center;
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  animation: toast-in 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.toast.hidden { display: none; }
-
-@keyframes toast-in {
-  from { opacity: 0; transform: translate(-50%, 12px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+  z-index: 100;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 3.7s forwards;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+/* Shown by the controller (main.ts) via classList.add("visible"). */
+#toast.visible {
+  display: block;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(-50%) translateY(0); }
+  to { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   § 8  Responsive breakpoints
+   ══════════════════════════════════════════════════════════ */
+
+/* TV / Large screens (4K / 1080p) */
+@media (min-width: 1280px) {
+  :root {
+    --text-size: 16px;
   }
+
+  .idle-card {
+    padding: 56px 72px;
+  }
+
+  .idle-card h1 {
+    font-size: 36px;
+  }
+
+  #room-code {
+    font-size: 36px;
+    padding: 14px 36px;
+  }
+
+  /* Larger hit targets for TV remote */
+  .seek-container {
+    height: 40px;
+    gap: 10px;
+  }
+
+  #controls {
+    padding: 20px 32px;
+  }
+}
+
+/* Mobile phones */
+@media (max-width: 640px) {
+  :root {
+    --text-size: 14px;
+    --radius: 12px;
+  }
+
+  .idle-card {
+    padding: 32px 24px;
+    margin: 16px;
+  }
+
+  .idle-card h1 {
+    font-size: 22px;
+  }
+
+  #room-code {
+    font-size: 22px;
+    padding: 8px 20px;
+    min-width: 140px;
+  }
+
+  /* Compact controls on mobile */
+  #controls {
+    padding: 12px 16px;
+  }
+
+  .seek-container {
+    height: 28px;
+  }
+
+  .seek-container input[type="range"] {
+    height: 4px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   § 9  Focus ring (keyboard accessible!)
+   ══════════════════════════════════════════════════════════ */
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
