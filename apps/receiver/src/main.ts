@@ -146,7 +146,7 @@ function resolveDOM() {
 
 function parseRoomCode() {
   const pathCode = normalizeRoomCode(
-    location.pathname.replace(new RegExp(/^\/r\/.*/), "")
+    location.pathname.replace(/^\/r\/?/, "")
   );
   const queryCode = normalizeRoomCode(
     new URLSearchParams(location.search).get("code") ?? ""
@@ -163,7 +163,7 @@ function ensureRoomCode() {
   history.replaceState(
     null,
     "StreamCaster",
-    `${location.pathname}/r/${state.roomCode}`
+    `${import.meta.env.BASE_URL}${state.roomCode}`
   );
 }
 
@@ -444,6 +444,13 @@ function render() {
       : peerStatus === "connected"
       ? "Connected"
       : "";
+
+  // Show the room code on the idle/waiting screen so the user can read it
+  // before a sender attaches. renderConnected() adds the QR image later.
+  if (peerStatus !== "connected") {
+    DOM.codeEl.textContent = state.roomCode || "······";
+    DOM.codeEl.style.display = "block";
+  }
 
   // Show/hide idle screen vs player. The phase decides — deriving it from
   // `state.title` broke as soon as an idle message carried a title

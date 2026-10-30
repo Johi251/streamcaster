@@ -141,24 +141,28 @@ html, body, #app {
 
 /* Room code display */
 #room-code {
-  font-family: "SF Mono", "SF Pro Text", "Consolas", "Monaco", monospace;
-  font-size: 28px;
+  display: block;
+  width: fit-content;
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Consolas", "Monaco", monospace;
+  font-size: 44px;
   font-weight: 700;
-  letter-spacing: 4px;
-  background: var(--accent);
+  letter-spacing: 10px;
+  text-indent: 10px; /* balance the trailing letter-spacing so it looks centred */
   color: #fff;
-  padding: 12px 28px;
-  border-radius: 10px;
-  line-height: 1.2;
-  margin: 0 auto 28px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  padding: 16px 30px;
+  border-radius: 14px;
+  line-height: 1.1;
+  margin: 0 auto 26px;
   text-transform: uppercase;
-  min-width: 180px;
-  display: none;
+  box-shadow:
+    0 12px 36px rgba(79, 140, 255, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 #room-code img {
   display: block;
-  margin: 0 auto;
+  margin: 12px auto 0;
   width: 150px;
   height: auto;
   border-radius: 8px;
