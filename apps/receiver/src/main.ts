@@ -75,6 +75,7 @@ const initialState: AppState = {
 
 let state = { ...initialState };
 let qrcodePromise: Promise<string> | null = null;
+let qrForCode = "";
 let signalingClient: ReceiverClient | null = null;
 let receiverPeer: ReceiverPeer | null = null;
 let player: ReceiverPlayer | null = null;
@@ -537,10 +538,11 @@ function render() {
     : "Waiting for sender…";
 
   // Show the room code on the idle/waiting screen so the user can read it
-  // before a sender attaches. renderConnected() adds the QR image later.
+  // before a sender attaches, and pair the QR with it right away.
   if (peerStatus !== "connected") {
     DOM.codeEl.textContent = state.roomCode || "······";
     DOM.codeEl.style.display = "block";
+    ensureQr();
   }
 
   // Show/hide idle screen vs player. The phase decides — deriving it from
@@ -560,12 +562,12 @@ function render() {
         : peerStatus === "none"
         ? "StreamCaster Receiver"
         : state.title || "Connected";
+    // The code is already the biggest thing on the card, so repeating it as
+    // "Room: X" wasted the only line that can tell people the QR exists.
     DOM.idleUrlEl.textContent =
-      peerStatus === "waiting"
+      peerStatus === "connected"
         ? `Room: ${state.roomCode}`
-        : peerStatus === "none"
-        ? "Open the sender app on your phone and enter this code"
-        : `Room: ${state.roomCode}`;
+        : "Scan with your phone camera — or type the code";
   } else {
     DOM.idleEl.style.display = "none";
     DOM.videoEl.style.display = "block";
@@ -580,30 +582,47 @@ function renderConnected() {
 
   DOM.codeEl.textContent = state.roomCode;
   DOM.codeEl.style.display = "flex";
+  ensureQr();
+}
 
-  // The QR is a shortcut for pairing a second device, so it sits *below* the
-  // code badge. Appending it to the badge itself squashed the code and looked
-  // broken on a TV.
-  if (!qrcodePromise && DOM.qrBoxEl) {
-    qrcodePromise = QRCode.toDataURL(`streamcaster://${state.roomCode}`, {
-      width: 148,
-      margin: 1,
+/**
+ * Render the pairing QR below the code badge — as soon as the room has a code,
+ * not only once a sender is attached. Scanning it with a phone camera opens the
+ * sender with `#join=<code>`, which fills the field *and* connects, so nobody
+ * has to type six characters with a TV remote in the room.
+ *
+ * It sits below the badge on purpose: appending it to the badge squashed the
+ * code and looked broken on a TV.
+ */
+function ensureQr(): void {
+  if (!DOM.qrBoxEl) return;
+  const code = state.roomCode;
+  if (!code) return;
+  if (qrcodePromise && qrForCode === code) return;
+
+  qrForCode = code;
+  // The sender lives one level above /r/, so ".." resolves to its root both for
+  // "/r/" and for "/r/CODE".
+  const senderUrl = new URL("../", location.href).href;
+  qrcodePromise = QRCode.toDataURL(`${senderUrl}#join=${code}`, {
+    width: 148,
+    margin: 1,
+  });
+
+  qrcodePromise
+    .then((dataUrl) => {
+      if (!DOM.qrBoxEl) return;
+      DOM.qrBoxEl.replaceChildren();
+      const img = document.createElement("img");
+      img.src = dataUrl;
+      img.width = 148;
+      img.alt = `QR code that opens StreamCaster and joins room ${code}`;
+      DOM.qrBoxEl.appendChild(img);
+      DOM.qrBoxEl.classList.remove("hidden");
+    })
+    .catch(() => {
+      /* QR rendering is optional — the code below it still works */
     });
-    qrcodePromise
-      .then((dataUrl) => {
-        if (!DOM.qrBoxEl) return;
-        DOM.qrBoxEl.innerHTML = "";
-        const img = document.createElement("img");
-        img.src = dataUrl;
-        img.width = 148;
-        img.alt = `QR code for room ${state.roomCode}`;
-        DOM.qrBoxEl.appendChild(img);
-        DOM.qrBoxEl.classList.remove("hidden");
-      })
-      .catch(() => {
-        /* QR rendering is optional */
-      });
-  }
 }
 
 function renderPlaying() {
