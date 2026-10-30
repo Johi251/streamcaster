@@ -81,6 +81,14 @@ let player: ReceiverPlayer | null = null;
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let toastEl: HTMLElement | null = null;
 
+// Auto-reconnect. TV browsers (Silk on Fire TV, Tizen, webOS) suspend
+// background tabs and drop WebSockets when the screen saver kicks in, so a
+// receiver that only reconnects on a button press silently goes dark. These
+// keep the room alive without any user action.
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempt = 0;
+let clientGen = 0;
+
 // ═══════════════════════════════════════════════════════════
 //  § 3  DOM references — lazy (null until mounted)
 // ═══════════════════════════════════════════════════════════
@@ -88,6 +96,7 @@ let toastEl: HTMLElement | null = null;
 interface DomRefs {
   statusEl: HTMLElement;
   codeEl: HTMLElement;
+  qrBoxEl: HTMLElement;
   idleEl: HTMLElement;
   idleTitleEl: HTMLElement;
   idleUrlEl: HTMLElement;
@@ -120,6 +129,7 @@ function q<T extends HTMLElement>(id: string): T {
 function resolveDOM() {
   DOM.statusEl = q("status");
   DOM.codeEl = q("room-code");
+  DOM.qrBoxEl = q("qr-box");
   DOM.idleEl = q("idle");
   DOM.idleTitleEl = q("idle-title");
   DOM.idleUrlEl = q("idle-url");
@@ -210,28 +220,112 @@ async function connectSignaling() {
     userAgent: navigator.userAgent,
   };
 
+  // Every client gets a generation. Events from a client that has since been
+  // replaced are ignored, otherwise closing the old socket during a reconnect
+  // would immediately schedule the next one and the room would flap.
+  const gen = ++clientGen;
+
   signalingClient = new ReceiverClient(SIGNALING_URL, {
-    onMessage: handleMessage,
+    onMessage: (msg) => {
+      if (gen === clientGen) handleMessage(msg);
+    },
     onStatus: (s: SignalingStatus) => {
+      if (gen !== clientGen) return;
       state.signalingStatus = s;
+      if (s === "ws" || s === "sse") {
+        // Back in the room: reset the backoff and drop any queued retry.
+        reconnectAttempt = 0;
+        clearReconnect();
+      }
       if (DOM.toastEl) DOM.toastEl.textContent = "";
       render();
+      if (s === "closed" || s === "error") scheduleReconnect();
     },
     onError: (err: Error) => {
+      if (gen !== clientGen) return;
       state.signalingStatus = "error";
       if (DOM.toastEl) toast(`Signal connection failed: ${err.message}`);
       render();
+      scheduleReconnect();
     },
   });
 
   signalingClient.connect(state.roomCode, "receiver", caps);
 }
 
+/**
+ * Re-enter the room after the socket died, with exponential backoff
+ * (1s, 2s, 4s … capped at 15s). A pending timer is the only guard, so a burst
+ * of status events can never queue two attempts — and a failed attempt always
+ * queues the next one, which is what used to leave the TV stuck on "offline".
+ */
+function scheduleReconnect(): void {
+  if (reconnectTimer !== null) return;
+  // First attempt fires immediately: TV browsers throttle timers as soon as the
+  // page is treated as hidden (video playback hands off to a media surface), so
+  // a delayed first retry can be postponed by a minute or more — long enough
+  // for the room to look dead. Only the retries back off.
+  const delay =
+    reconnectAttempt === 0 ? 0 : Math.min(500 * 2 ** (reconnectAttempt - 1), 15000);
+  reconnectAttempt++;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void attemptReconnect();
+  }, delay);
+}
+
+function clearReconnect(): void {
+  if (reconnectTimer === null) return;
+  clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+}
+
+async function attemptReconnect(): Promise<void> {
+  try {
+    signalingClient?.close();
+  } catch {
+    /* already gone */
+  }
+  try {
+    await connectSignaling();
+    // The close() above reports "closed" for the retired client, which may have
+    // queued a retry; a live connection must cancel it.
+    clearReconnect();
+  } catch {
+    scheduleReconnect();
+  }
+}
+
+/** Reconnect right now, resetting the backoff (used by wake-up signals). */
+function kickReconnect(): void {
+  const s = state.signalingStatus;
+  if (s !== "closed" && s !== "error") return;
+  reconnectAttempt = 0;
+  clearReconnect();
+  scheduleReconnect();
+}
+
+/** A TV browser that comes back from standby must re-enter the room at once. */
+function onVisibilityChange(): void {
+  if (document.visibilityState !== "visible") return;
+  kickReconnect();
+}
+
 async function handleMessage(msg: ServerMessage) {
   switch (msg.t) {
     case "joined":
-      state.peerStatus = "waiting";
-      render();
+      // peerPresent says whether a sender is *already* in the room. After an
+      // auto-reconnect that is how the TV recovers a session whose start it
+      // missed — without it the screen would claim "waiting" while the phone
+      // is still attached.
+      if (msg.peerPresent) {
+        state.peerStatus = "connected";
+        render();
+        renderConnected();
+      } else {
+        state.peerStatus = "waiting";
+        render();
+      }
       break;
 
     case "peer-joined":
@@ -241,12 +335,14 @@ async function handleMessage(msg: ServerMessage) {
       break;
 
     case "peer-left":
-      state.peerStatus = "none";
+      // The room stays open: the next phone can pair with the same code, so the
+      // TV goes back to "waiting", not to a dead "offline" screen.
+      state.peerStatus = "waiting";
       player?.stop();
       player = null;
       receiverPeer?.clear();
       receiverPeer = null;
-      renderIdle("Sender left", "");
+      renderIdle("Waiting for sender…", "");
       break;
 
     case "cmd":
@@ -428,22 +524,17 @@ function stopPlayer() {
 function render() {
   const { signalingStatus, peerStatus } = state;
 
-  // Status chip color
+  // Status chip. "Offline" must mean the signaling link is down — a sender
+  // that simply disconnected leaves the room open, so the TV keeps waiting.
+  const linkDown = signalingStatus === "closed" || signalingStatus === "error";
   DOM.statusEl.className = `chip ${
-    signalingStatus === "closed" || signalingStatus === "error"
-      ? "offline"
-      : signalingStatus === "ws" || signalingStatus === "sse"
-      ? "connected"
-      : "waiting"
+    linkDown ? "offline" : signalingStatus === "ws" || signalingStatus === "sse" ? "connected" : "waiting"
   }`;
-  DOM.statusEl.textContent =
-    peerStatus === "none"
-      ? "Offline"
-      : peerStatus === "waiting"
-      ? "Waiting for sender…"
-      : peerStatus === "connected"
-      ? "Connected"
-      : "";
+  DOM.statusEl.textContent = linkDown
+    ? "Offline"
+    : peerStatus === "connected"
+    ? "Connected"
+    : "Waiting for sender…";
 
   // Show the room code on the idle/waiting screen so the user can read it
   // before a sender attaches. renderConnected() adds the QR image later.
@@ -468,13 +559,13 @@ function render() {
         ? "Waiting for sender…"
         : peerStatus === "none"
         ? "StreamCaster Receiver"
-        : state.title || "StreamCaster";
+        : state.title || "Connected";
     DOM.idleUrlEl.textContent =
       peerStatus === "waiting"
         ? `Room: ${state.roomCode}`
         : peerStatus === "none"
         ? "Open the sender app on your phone and enter this code"
-        : state.title || "";
+        : `Room: ${state.roomCode}`;
   } else {
     DOM.idleEl.style.display = "none";
     DOM.videoEl.style.display = "block";
@@ -484,26 +575,34 @@ function render() {
 }
 
 function renderConnected() {
-  DOM.idleEl.style.display = "flex";
-  DOM.idleTitleEl.textContent = `Connected to room ${state.roomCode}`;
-  DOM.idleUrlEl.textContent = `Room: ${state.roomCode}`;
-  DOM.codeEl.textContent = state.roomCode;
+  state.title = "Connected";
+  render();
 
-  // QR Code generation (lazy)
-  if (!qrcodePromise && DOM.codeEl) {
+  DOM.codeEl.textContent = state.roomCode;
+  DOM.codeEl.style.display = "flex";
+
+  // The QR is a shortcut for pairing a second device, so it sits *below* the
+  // code badge. Appending it to the badge itself squashed the code and looked
+  // broken on a TV.
+  if (!qrcodePromise && DOM.qrBoxEl) {
     qrcodePromise = QRCode.toDataURL(`streamcaster://${state.roomCode}`, {
-      width: 150,
+      width: 148,
       margin: 1,
     });
-    qrcodePromise.then(async (dataUrl) => {
-      const img = document.createElement("img");
-      img.src = dataUrl;
-      img.style.opacity = "0";
-      img.style.transition = "opacity 0.5s";
-      DOM.codeEl.style.display = "block";
-      DOM.codeEl.appendChild(img);
-      setTimeout(() => { img.style.opacity = "1"; }, 50);
-    });
+    qrcodePromise
+      .then((dataUrl) => {
+        if (!DOM.qrBoxEl) return;
+        DOM.qrBoxEl.innerHTML = "";
+        const img = document.createElement("img");
+        img.src = dataUrl;
+        img.width = 148;
+        img.alt = `QR code for room ${state.roomCode}`;
+        DOM.qrBoxEl.appendChild(img);
+        DOM.qrBoxEl.classList.remove("hidden");
+      })
+      .catch(() => {
+        /* QR rendering is optional */
+      });
   }
 }
 
@@ -668,17 +767,41 @@ async function bootstrap(): Promise<void> {
   resolveDOM();
   bindEvents();
 
-  // Register Service Worker for PWA
+  // Register the PWA service worker. The receiver lives under /r/, so the path
+  // must stay relative: an absolute "/service-worker.js" resolves to the
+  // sender's root, where the host answers with index.html (text/html) and the
+  // browser rejects the registration ("unsupported MIME type").
   if ("serviceWorker" in navigator) {
     try {
-      const registration = await navigator.serviceWorker.register(
-        "/service-worker.js"
-      );
-      toast("StreamCaster app installed ✅");
+      await navigator.serviceWorker.register("./service-worker.js", {
+        scope: "./",
+      });
     } catch {
-      // SW registration failed — proceed normally
+      // PWA install is a bonus — never a reason to fail startup.
     }
   }
+
+  // Coming back from standby or from a network drop re-enters the room at once
+  // instead of waiting for the backoff timer. `resume`/`pageshow` cover the
+  // cases where a TV browser restores a frozen page without firing
+  // visibilitychange, and any key or tap counts as "the user is here".
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  window.addEventListener("online", kickReconnect);
+  window.addEventListener("focus", onVisibilityChange);
+  window.addEventListener("pageshow", onVisibilityChange);
+  document.addEventListener("resume" as "visibilitychange", onVisibilityChange);
+  window.addEventListener("keydown", kickReconnect, { passive: true });
+  window.addEventListener("pointerdown", kickReconnect, { passive: true });
+
+  // A muted start (see HLSPlayer.startPlayback) gets its sound back on the
+  // first key press or tap — that gesture is what the browser was waiting for.
+  const unmute = () => {
+    if (!DOM.videoEl.muted) return;
+    DOM.videoEl.muted = false;
+    DOM.videoEl.volume = state.volume;
+  };
+  window.addEventListener("keydown", unmute);
+  window.addEventListener("pointerdown", unmute);
 
   // Initial render
   render();

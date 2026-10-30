@@ -108,6 +108,9 @@ html, body, #app {
   padding: 24px;
   width: 100%;
   height: 100%;
+  /* TV browsers report a short viewport once their chrome is subtracted; a
+     centred card taller than the screen used to be clipped at both ends. */
+  overflow-y: auto;
 }
 
 .idle-card {
@@ -122,6 +125,8 @@ html, body, #app {
   width: 100%;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
   transition: opacity 0.3s ease, transform 0.3s ease;
+  /* Centres while it fits, scrolls instead of clipping when it does not. */
+  margin: auto;
 }
 
 .idle-card h1 {
@@ -166,6 +171,28 @@ html, body, #app {
   width: 150px;
   height: auto;
   border-radius: 8px;
+}
+
+/* QR shortcut, shown below the code badge once a sender is attached */
+#qr-box {
+  width: fit-content;
+  margin: -12px auto 22px;
+  padding: 8px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  line-height: 0;
+}
+
+#qr-box img {
+  display: block;
+  width: 148px;
+  height: auto;
+  border-radius: 4px;
+}
+
+#qr-box.hidden {
+  display: none;
 }
 
 /* Status text */
@@ -506,4 +533,43 @@ button:focus-visible,
 input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   § 10  Short viewports (TV browsers, small laptops)
+   The connected screen stacks title + code + QR + chip + button;
+   at < 720px of usable height it must shrink, not get clipped.
+   ══════════════════════════════════════════════════════════ */
+
+@media (max-height: 720px) {
+  .idle-card {
+    padding: 26px 34px;
+  }
+
+  .idle-card h1 {
+    font-size: 22px;
+    margin-bottom: 10px;
+  }
+
+  .idle-card p.hint {
+    font-size: 14px;
+    margin-bottom: 18px;
+  }
+
+  #room-code {
+    font-size: 34px;
+    letter-spacing: 7px;
+    text-indent: 7px;
+    padding: 12px 24px;
+    margin-bottom: 18px;
+  }
+
+  #qr-box {
+    margin: -8px auto 14px;
+    padding: 6px;
+  }
+
+  #qr-box img {
+    width: 112px;
+  }
 }

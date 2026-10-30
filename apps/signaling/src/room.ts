@@ -12,6 +12,8 @@ const SSE_KEEPALIVE_MS = 25_000;
 
 interface SocketAttachment {
   role: Role;
+  /** Set when a newer socket for the same role took over this one. */
+  replaced?: boolean;
 }
 
 /** An SSE client sink (browser EventSource can only receive). */
@@ -68,9 +70,29 @@ export class Room implements DurableObject {
     // Capacity: exactly one sender and one receiver per room.
     const existing = this.roleOfSocket(ws) ? null : this.findRole(role);
     if (existing) {
-      this.sendTo(ws, { t: "error", code: "role_taken", message: `Another ${role} is already in this room.` });
-      ws.close(4000, "role taken");
-      return;
+      // Takeover instead of rejection. A TV waking from standby (Silk, Tizen,
+      // webOS) or a phone that switched Wi-Fi still holds a half-open socket
+      // that the edge has not reaped yet — often for minutes. Refusing the
+      // reconnect stranded that device on "offline" until the room expired,
+      // so the newest socket wins and the stale one retires quietly.
+      const staleWs = existing as WebSocket;
+      if (typeof staleWs.close === "function" && typeof staleWs.serializeAttachment === "function") {
+        try {
+          staleWs.serializeAttachment({ role, replaced: true } satisfies SocketAttachment);
+          staleWs.close(4001, "replaced by a newer connection");
+        } catch {
+          /* already gone — nothing to retire */
+        }
+      }
+      for (const sink of [...this.sseSinks]) {
+        if (sink.role !== role) continue;
+        try {
+          sink.close();
+        } catch {
+          /* already closed */
+        }
+        this.sseSinks.delete(sink);
+      }
     }
 
     ws.serializeAttachment({ role } satisfies SocketAttachment);
@@ -185,7 +207,9 @@ export class Room implements DurableObject {
 
   async webSocketClose(ws: WebSocket): Promise<void> {
     const att = this.tryAttachment(ws);
-    if (att?.role) {
+    // A socket retired by a takeover must not tell the peer the device left —
+    // its replacement has already joined under the same role.
+    if (att?.role && !att.replaced) {
       this.broadcastExcept(ws, { t: "peer-left", role: att.role });
     }
   }

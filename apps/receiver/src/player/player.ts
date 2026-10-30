@@ -69,7 +69,15 @@ class InternalHlsPlayer {
         // Native HTML5 HLS fallback (Safari / newer Chrome)
         this.el.src = this._currentUrl;
         this.el.load();
-        await this.el.play();
+        try {
+          await this.el.play();
+        } catch {
+          // Autoplay with sound is refused until the page has a user gesture —
+          // TV browsers never have one. Starting muted is always allowed, and
+          // the first remote key restores the sound.
+          this.el.muted = true;
+          await this.el.play().catch(() => undefined);
+        }
         return;
       }
 
@@ -84,10 +92,24 @@ class InternalHlsPlayer {
       } else {
         this.hlsInstance.loadSource(this._currentUrl);
       }
-      await this.el.play().catch(() => undefined);
+      await this.startPlayback();
     } catch (err) {
       console.error("[HLSPlayer] playing() failed:", err);
       throw err;
+    }
+  }
+
+  /**
+   * Play with a muted fallback. TV browsers (Silk, Tizen, webOS) refuse
+   * autoplay with sound because the page has no user gesture, which left the
+   * TV showing a black frame at 0:00 while the sender believed it was casting.
+   */
+  private async startPlayback(): Promise<void> {
+    try {
+      await this.el.play();
+    } catch {
+      this.el.muted = true;
+      await this.el.play().catch(() => undefined);
     }
   }
 
