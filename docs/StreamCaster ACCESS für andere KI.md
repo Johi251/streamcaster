@@ -159,7 +159,7 @@ research/           — SCOPE.md, airplay-receiver-apk-prompt.md
 ```bash
 pnpm install              # Dependencies
 pnpm -r typecheck         # Typecheck alle Packages
-pnpm test                 # Unit-Tests (vitest)
+pnpm test                 # Unit-Tests (47)
 pnpm build:site           # Site bauen ohne Deploy
 pnpm deploy:all           # Full Deploy
 ```
