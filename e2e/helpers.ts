@@ -30,14 +30,17 @@ export async function openSender(context: BrowserContext, code: string): Promise
   return page;
 }
 
-/** Pair and return both pages. Receiver must show "Sender connected". */
+/** Pair and return both pages. Receiver must reach the connected state. */
 export async function pair(
   context: BrowserContext,
   code = randomCode()
 ): Promise<{ receiver: Page; sender: Page }> {
   const receiver = await openReceiver(context, code);
   const sender = await openSender(context, code);
-  await expect(receiver.locator("#status")).toHaveText("Sender connected", { timeout: 20_000 });
+  // The receiver marks the connected state with the `connected` CSS class on
+  // #status (its text is "Connected" in the shipped UI). Assert the class so
+  // the check stays robust to wording tweaks.
+  await expect(receiver.locator("#status")).toHaveClass(/connected/, { timeout: 20_000 });
   return { receiver, sender };
 }
 

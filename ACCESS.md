@@ -159,10 +159,37 @@ research/           — SCOPE.md, airplay-receiver-apk-prompt.md
 ```bash
 pnpm install              # Dependencies
 pnpm -r typecheck         # Typecheck alle Packages
-pnpm test                 # Unit-Tests (35)
+pnpm test                 # Unit-Tests (vitest)
 pnpm build:site           # Site bauen ohne Deploy
 pnpm deploy:all           # Full Deploy
 ```
+
+**Wichtig — `build:site` allein reicht nicht für Browse:** Die Sender-App backt
+`VITE_PROXY_URL` / `VITE_SIGNALING_URL` zur Build-Zeit ein. Ohne diese Variablen
+ist der In-Page-Browser deaktiviert ("Proxy not configured"). `deploy:all` setzt
+sie automatisch aus den deployten Worker-URLs; ein manueller Build braucht:
+
+```bash
+VITE_SIGNALING_URL=https://streamcaster-signaling.streamcaster.workers.dev \
+VITE_PROXY_URL=https://streamcaster-proxy.streamcaster.workers.dev \
+node scripts/build-site.mjs
+```
+
+### E2E-Tests (Playwright, 17 Tests)
+
+Laufen gegen eine bereits deployte Umgebung (kein lokaler Server nötig). Die
+`?code=`-Übergabe an den Receiver ist Voraussetzung für deterministische Räume.
+
+```bash
+E2E_BASE_URL=https://streamcaster.pages.dev \
+E2E_PROXY_URL=https://streamcaster-proxy.streamcaster.workers.dev \
+E2E_SIGNALING_URL=https://streamcaster-signaling.streamcaster.workers.dev \
+pnpm exec playwright test -c e2e/playwright.config.ts
+```
+
+Stand: 17/17 grün gegen Live (Oktober 2026). Hinweis: Der HLS-über-Proxy-Test
+braucht die echte, öffentlich erreichbare Seite als `E2E_BASE_URL` — ein
+`127.0.0.1`-Ursprung ist für den Remote-Proxy nicht abrufbar.
 
 ## Cloudflare-Zugang
 

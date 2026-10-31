@@ -48,6 +48,8 @@ und spielt ab. Beide finden sich über einen 6-stelligen Raum-Code, den der TV a
   via WebRTC zum TV.
 - **QR-Code-Pairing:** Der TV zeigt einen QR-Code; mit der Handy-Kamera scannen verbindet
   direkt — kein Tippen des Codes nötig.
+- **Fester Raum per Link:** `/r/?code=XXXXXX` öffnet den Receiver direkt in einem bestimmten
+  Raum (reload-fest) — praktisch für Lesezeichen und QR-Deep-Links.
 - **Browse & Cast (Proxy):** Die „Browse & Cast"-Karte lädt eine Webseite im abgesicherten
   Proxy (CORS-Rewrite, HLS-Umschreibung, Range-Forwarding), erlaubt Medien-Capture und
   castet die gefundene URL — umgeht Browser-Same-Origin-Blockaden.
@@ -135,7 +137,9 @@ App installiert (v1.0.4, versionCode 5, minSdk 22), `HubActivity` startet, Raum-
 angezeigt, Video-Cast über ExoPlayer bestätigt. Der Web-Stack ist via `wrangler tail`
 stabil (keine Fehler über mehrere Stunden). **iPhone/iPad-AirPlay-Spiegelung** auf den
 Fire TV via Receiver-APK verifiziert (Bild + Steuerung) — die native Sender-Brücke
-funktioniert.
+funktioniert. Zusätzlich deckt eine Playwright-E2E-Suite (17 Tests) Pairing, URL-Cast,
+HLS (direkt und über den Proxy), Browse & Cast, WebRTC-Mirror und Chromecast-Gating ab —
+**17/17 grün gegen die Live-Umgebung** (`streamcaster.pages.dev`).
 
 **Quellcode & Zugang.** Web-App: privates Repo `Johi251/streamcaster`. APK: öffentliches
 Repo `Johi251/streamcaster-airplay-receiver`. Cloudflare-Account und GitHub-CLI sind auf

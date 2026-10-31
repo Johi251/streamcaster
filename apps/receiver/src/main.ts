@@ -170,6 +170,19 @@ function parseRoomCode() {
 
 function ensureRoomCode() {
   if (state.roomCode) return;
+  // Honour an explicit room code from the URL (/r/<code> or /r/?code=<code>),
+  // e.g. a QR deep link or a deterministic E2E room. Falls back to a random
+  // code when none is provided or the value is invalid.
+  const parsed = parseRoomCode();
+  if (parsed) {
+    state.roomCode = parsed;
+    history.replaceState(
+      null,
+      "StreamCaster",
+      `${import.meta.env.BASE_URL}${state.roomCode}`
+    );
+    return;
+  }
   state.roomCode = generateRoomCode();
   history.replaceState(
     null,

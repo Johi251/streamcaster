@@ -11,7 +11,7 @@ No install, no OS lock-in, no account. Everything free-tier.
 ```
  Phone/desktop browser                TV / Fire TV / Echo Show / PC
 ┌─────────────────────────┐           ┌────────────────────────────┐
-│ SENDER SPA (/)          │  commands │ RECEIVER SPA (/r/<CODE>)   │
+│ SENDER SPA (/)          │  commands │ RECEIVER SPA (/r/)         │
 │  - cast URL / extract   │ ◀────────▶│  - <video> + hls.js        │
 │  - mirror / camera      │  WebSocket│  - WebRTC media + file     │
 │  - Chromecast button    │           │  - code + QR pairing       │
@@ -41,12 +41,8 @@ requires WebSocket-capable browsers on both ends (same Wi-Fi recommended).
 ## Deploy (free)
 
 ```bash
-wrangler login                    # one-time: YOUR Cloudflare account (free plan is enough)
-pnpm build:site                   # builds sender + receiver into site/dist
-VITE_SIGNALING_URL=https://<signaling>.workers.dev \
-VITE_PROXY_URL=https://<proxy>.workers.dev \
-pnpm build:site                   # rebuild with production URLs
-pnpm deploy:all                   # signaling Worker + proxy Worker + Pages
+wrangler login     # one-time: YOUR Cloudflare account (free plan is enough)
+pnpm deploy:all    # Workers first → site rebuild with their real URLs → Pages
 ```
 
 Cloudflare resources created:
@@ -83,13 +79,18 @@ for production.)
 
 ```bash
 pnpm verify                  # typecheck + unit tests (vitest)
-# E2E (see e2e/local-setup.md — starts servers, then:)
-npx playwright test -c e2e/playwright.config.ts
+# E2E (Playwright, 17 tests) against the deployed site:
+E2E_BASE_URL=https://streamcaster.pages.dev \
+E2E_PROXY_URL=https://streamcaster-proxy.streamcaster.workers.dev \
+E2E_SIGNALING_URL=https://streamcaster-signaling.streamcaster.workers.dev \
+pnpm exec playwright test -c e2e/playwright.config.ts
 ```
 
 ## Docs
 
-- `DECISIONS.md` — product decisions (DLNA deferral, iOS limits, rea scope)
+- `docs/HANDBUCH.md` — device handbook + "idea → product" retrospective
+- `ACCESS.md` — live URLs, deploy, worker URLs, AI-handoff credentials
+- `DECISIONS.md` — product decisions (DLNA deferral, iOS limits, room code via URL)
 - `research/` — bounded URL-extraction research + findings
 - `docs/LIMITATIONS.md` — what this can NOT do and why
 - `docs/PROXY.md` — proxy Worker contract + SSRF policy

@@ -52,3 +52,16 @@ reverse engineering of AirPlay/Fire TV private protocols. See
 Sender probes each media URL; mp4 always plays directly on the receiver
 (`<video src>` needs no CORS). HLS only routes through the proxy Worker when
 the origin does not send CORS headers. This keeps free-tier Worker load minimal.
+
+## D6 — Room code via URL: query form only (`?code=`)
+
+**Decision:** The receiver adopts a valid 6-char code from `?code=` (and, on any
+host that actually serves it, from the `/r/<CODE>` path); otherwise it generates
+a random code as before. `/r/?code=XXXXXX` is the reload-stable form used by QR
+deep links, bookmarks and the E2E suite.
+
+**Why the query form:** Cloudflare Pages does not apply the `/r/*` SPA rewrite to
+path segments — `/r/<CODE>` falls through to the sender's `index.html`. The query
+form resolves to the real `/r/` directory, so it works on every host. Making the
+room deterministic also lets the Playwright suite drive both sides into the same
+room and lets a user pin a room via bookmark.
