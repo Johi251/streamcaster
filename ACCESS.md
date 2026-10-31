@@ -124,7 +124,11 @@ verbundene Ansicht; sonst den Wartezustand mit sichtbarem Code. Clients sollten
 - **Video-Cast auf Hardware bestätigt** (v1.0.3): Browser-Sender → `{t:"join"}` → Receiver spielt
   MP4 über ExoPlayer (`HW.video.avc`, 1280×720, 833 kbps), eigene Wiedergabe-Leiste mit
   „OK = Pause", ±10 s, „Zurück = Beenden"; am Ende „0:10 / 0:10" und „OK = Abspielen".
-- **Offen:** E2E-Test mit iPhone (Bildschirmspiegelung) und Sender-Gegenstelle.
+- **Verifiziert (31.10.):** iPhone/iPad-AirPlay-Spiegelung auf Fire TV via Receiver-APK
+  funktioniert — Bild erscheint, Steuerung über AirPlay. Damit ist die volle
+  Sender-Brücke (Web-PWA **und** native AirPlay) abgedeckt.
+- **Offen:** E2E-Playwright-Suite (13 Specs) bewusst aufgeschoben; Sender-Gegenstelle
+  (Web-App → TV) in vorherigen Sessions bereits geprüft.
 
 ### Intercepting-Proxy (Option C — umgesetzt)
 - Proxy-Route `/browse?url=URL` lädt Zielseite, injiziert Media-Capture-Script

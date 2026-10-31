@@ -133,7 +133,9 @@ speichern.
 **Verifikation.** End-to-End auf einem Fire TV Stick 4K (AFTMM, Fire OS 6) geprüft:
 App installiert (v1.0.4, versionCode 5, minSdk 22), `HubActivity` startet, Raum-Code wird
 angezeigt, Video-Cast über ExoPlayer bestätigt. Der Web-Stack ist via `wrangler tail`
-stabil (keine Fehler über mehrere Stunden).
+stabil (keine Fehler über mehrere Stunden). **iPhone/iPad-AirPlay-Spiegelung** auf den
+Fire TV via Receiver-APK verifiziert (Bild + Steuerung) — die native Sender-Brücke
+funktioniert.
 
 **Quellcode & Zugang.** Web-App: privates Repo `Johi251/streamcaster`. APK: öffentliches
 Repo `Johi251/streamcaster-airplay-receiver`. Cloudflare-Account und GitHub-CLI sind auf
