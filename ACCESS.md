@@ -170,6 +170,53 @@ pnpm deploy:all           # Full Deploy
 Kein API-Token im Repo. Wrangler-OAuth-Token liegt in
 `%APPDATA%/xdg.config/.wrangler/config/default.toml` (maschinenlokal).
 
+## Zugänge für KI-Handoff
+
+Diese Sektion sammelt alle Zugänge an einem Ort, damit ein anderer KI-Agent (oder du von
+einem anderen Tool aus) Änderungen vornehmen kann. **Alle Secrets sind maschinenlokal und
+gitignored** — sie werden hier nur lokalisiert, nicht im Klartext hinterlegt. Für einen
+anderen Rechner müssen Keystore + Passwort + Wrangler-Login separat übertragen werden.
+
+### GitHub
+- **Web-App (Haupt-Repo):** `https://github.com/Johi251/streamcaster` — **PRIVAT**.
+  Enthält Sender, Receiver, Worker, Proxy, Site, Docs. Stand ist auf `main` gepusht
+  (Remote `origin` konfiguriert). Push: `git push`.
+- **APK-Repo:** `https://github.com/Johi251/streamcaster-airplay-receiver` — **PUBLIK**.
+  Eigenständiges Android-Projekt; im Haupt-Repo via `.gitignore` ausgeklammert
+  (`airplay-receiver/`). Build + Release v1.0.4 liegen dort.
+- **Auth:** `gh` CLI ist auf diesem Rechner authentifiziert (OAuth). Neue Repos:
+  `gh repo create <name> --private --source . --remote origin --push`.
+
+### Cloudflare
+- **Auth:** `pnpm exec wrangler login` (OAuth) — einmalig eingerichtet. Token in
+  `%APPDATA%/xdg.config/.wrangler/config/default.toml` (maschinenlokal, nicht im Repo).
+- **Account:** CF-ACCOUNT-EMAIL-REDACTED · Account-ID `CF-ACCOUNT-ID-REDACTED`
+- **Workers-Subdomain:** `streamcaster.workers.dev`
+- **Pages-Projekt:** `streamcaster` · **Dashboard:** https://dash.cloudflare.com
+
+### APK signieren (für künftige Versionen)
+- Der CI-Build (`airplay-receiver/.github/workflows/android.yml`) liefert ein **unsigniertes**
+  Artefakt. Signatur lokal mit dem Keystore `airplay-receiver/.secrets/streamcaster-release.jks`.
+- Keystore-Passwort + Key-Alias/-Passwort: `airplay-receiver/.secrets/signing.properties`
+  (gitignored, maschinenlokal).
+- Signier-Skript: `scripts/sign-apk.mjs <unsigniert.apk> <ausgabe.apk>` — erzwingt v1+v2+v3
+  (v1 zwingend für Android ≤6) und minSdk 22.
+- Danach Release: `gh release create vX.Y.Z <apk> --repo Johi251/streamcaster-airplay-receiver`
+  und die signierte APK nach `airplay-receiver/dist/streamcaster-receiver.apk` kopieren, damit
+  `scripts/build-site.mjs` sie auf Pages unter `/a.apk` ausliefert (danach `pnpm deploy:all`).
+
+### Test-Device (Fire TV Stick 4K, AFTMM)
+- ADB over Wi-Fi: `adb connect LAN-IP-REDACTED:5555` (ADB-Debugging am Stick aktiviert).
+- ADB-Toolchain: `airplay-receiver/.toolchain/android-sdk/platform-tools/` (oder
+  `C:\Users\johan\scb-sdk\platform-tools`). In **jeder** neuen Shell erst `adb connect`
+  ausführen — der ADB-Daemon hält nicht über Shell-Aufrufe hinweg.
+- Bei `offline`-Zustand: am Stick **Einstellungen → Meine Fire TV → Entwickleroptionen →
+  ADB-Debugging AUS, dann EIN** (startet adbd neu); ggf. „USB-Debugging zulassen" erneut
+  bestätigen.
+- Verifikation nach Install: `adb install -r <apk>` (connect + install in einem Shell-Aufruf),
+  `adb shell dumpsys package com.streamcaster.receiver | grep versionName`,
+  `adb shell am start -n com.streamcaster.receiver/.HubActivity`.
+
 ## Versionierung
 
 - v1.0.0 — v1.0.3: Webapp, Proxy, Extraction, Chromecast, Deploy-Automation
