@@ -91,30 +91,33 @@ verbundene Ansicht; sonst den Wartezustand mit sichtbarem Code. Clients sollten
 
 ## Integrationspunkte (für externe Projekte)
 
-### AirPlay-Receiver-APK (veröffentlicht, v1.0.3)
+### AirPlay-Receiver-APK (veröffentlicht, v1.0.4)
 - Eigenständiges Repo: https://github.com/Johi251/streamcaster-airplay-receiver (GPL-3.0)
 - Verbindet sich als Receiver via WS zum Signaling-Worker, generiert eigenen Room-Code
 - Empfängt CommandOps, spielt Media via ExoPlayer/Media3; AirPlay-2-Spiegelung via UxPlay-Kern
 - AirPlay-Gerätename im mDNS: **„StreamCaster TV"** (App-Name: „StreamCaster Receiver")
 - Download (stabil, `latest`): `https://github.com/Johi251/streamcaster-airplay-receiver/releases/latest/download/streamcaster-receiver.apk`
-- Kurz-Redirect der Webapp: **`https://streamcaster.pages.dev/apk`** → 302 auf obige URL
-  (definiert in `scripts/build-site.mjs` → `_redirects`; Release-Wechsel braucht kein SPA-Redeploy)
-- Build v1.0.3: 18.362.116 Bytes, SHA-256 `f7833ae8871d69637f073956b4419d9feb00a074d3773e714389234078409539`
-- ABIs `arm64-v8a` + `armeabi-v7a`, minSdk **24**, targetSdk 34, Paket `com.streamcaster.receiver`
-- Signatur v2/v3, Cert-SHA-256 `57d47fdad1d88ef1535a4e23ce66e9c16db3e2ecfd5f9f0499cb0748ccc86d9c`
+- **Kurze Direkt-URL der Webapp: `https://streamcaster.pages.dev/a.apk`** — echte Datei auf
+  Cloudflare Pages, MIME `application/vnd.android.package-archive`, **KEINE Umleitung**.
+  Kurzform `/apk` (Rewrite auf `/a.apk`) ist für die Fire-TV-Tastatur gedacht.
+  Vorher war `/apk` ein 302 auf GitHub (2 Hops) → ältere Silk-Browser speicherten die
+  HTML-Antwort statt der APK → „Problem beim Parsen des Pakets". Jetzt behoben.
+- Build v1.0.4: 9.535.890 Bytes, SHA-256 `4cb303e669ab7222360e69bd03413ac866879a012bde30aaac43b9c38f0e1f57`
+- ABIs `arm64-v8a` + `armeabi-v7a`, minSdk **22** (Fire OS 5 = Android 5.1), targetSdk 34, Paket `com.streamcaster.receiver`
+- Signatur v1+v2+v3 (v1 zwingend für Android ≤6), Cert-SHA-256 `57d47fdad1d88ef1535a4e23ce66e9c16db3e2ecfd5f9f0499cb0748ccc86d9c`
   (identisch zu v1.0.0 → Updates installieren über die alte Version)
 - **Build läuft auf GitHub Actions (Ubuntu)**, `.github/workflows/android.yml`; Artifact = unsigniert,
-  Signatur lokal mit `airplay-receiver/.secrets/streamcaster-release.jks`.
+  Signatur lokal mit `airplay-receiver/.secrets/streamcaster-release.jks` via `scripts/sign-apk.mjs`.
   Optional signiert die CI selbst, wenn die Repo-Secrets `ANDROID_KEYSTORE_B64`,
   `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` gesetzt sind.
-- Kompatibilität: **Fire OS 6+ (Android 7.0+)** — Fire TV Stick 4K/4K Max/Lite, 3rd-Gen-Stick, Cube.
-  Fire OS 5 (2. Gen) ist zu alt (API 22 < minSdk 24).
+- Kompatibilität: **Fire OS 5+ (Android 5.1+)** — Fire TV Stick 1. Gen/Lite (Fire OS 5), 2./3. Gen,
+  4K/4K Max (Fire OS 6/7/8), Cube. minSdk 22 deckt alle ab.
 - **Lint-Gate in der CI:** `:app:lintRelease` läuft mit, bricht aber nur bei `NewApi`-Funden ab
   (Aufrufe über minSdk hinaus = Absturz auf älteren Geräten). Die übrigen Lint-Fehler sind Altlasten.
-  Stand: 0 `NewApi`-Verstöße.
+  Stand: 0 `NewApi`-Verstöße (alle API-23-Stellen mit `Build.VERSION.SDK_INT`-Guards abgesichert).
 - Webapp-Karte: `buildAirPlayCard()` in `apps/sender/src/main.ts`
 - Prompt: `research/airplay-receiver-apk-prompt.md`
-- **Auf echter Hardware verifiziert** (29.10., Fire TV Stick 4K 1. Gen `AFTMM`, Fire OS 6.7.1.1,
+- **Auf echter Hardware verifiziert** (29./31.10., Fire TV Stick 4K 1. Gen `AFTMM`, Fire OS 6.7.1.1,
   `armeabi-v7a`, SDK 25): App startet, `HubActivity` im Vordergrund, Raum-Code wird angezeigt,
   `AirPlayService` auf Port 7000, mDNS `_airplay._tcp` + `_raop._tcp` als „StreamCaster TV".
   Diagnose per `adb connect LAN-IP-REDACTED:5555` (ADB-Debugging am Stick aktiviert).
@@ -178,7 +181,10 @@ Kein API-Token im Repo. Wrangler-OAuth-Token liegt in
   Vertrauenszeile zweizeilig, Kompatibilitätshinweis
 - v1.1.3: AirPlay-Karte auf APK v1.0.2 (Startabsturz behoben)
 - v1.1.4: AirPlay-Karte auf APK v1.0.3 (`singleTask`, keine Doppel-Oberfläche mehr)
-- Extern: AirPlay-Receiver-APK v1.0.3 (GitHub: Johi251/streamcaster-airplay-receiver, GPL-3.0)
+- Extern: AirPlay-Receiver-APK v1.0.4 (GitHub: Johi251/streamcaster-airplay-receiver, GPL-3.0)
   — v1.0.0 war auf Fire OS 6 nicht installierbar (minSdk 28, nur arm64),
   v1.0.1 stürzte beim Start ab (`RoundedCornerShape(999)` = 999 Prozent),
-  v1.0.2/1.0.3 beheben das bzw. die doppelte Activity-Instanz
+  v1.0.2/1.0.3 beheben das bzw. die doppelte Activity-Instanz,
+  v1.0.4 senkt minSdk 24→22 (Fire OS 5) und signiert v1+v2+v3, damit auch alte
+  Fire-TV-Sticks („Problem beim Parsen des Pakets") installieren können; APK liegt
+  ab sofort direkt auf `streamcaster.pages.dev/a.apk` (kein GitHub-Redirect mehr)

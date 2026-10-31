@@ -8,7 +8,7 @@
  *   VITE_SIGNALING_URL, VITE_PROXY_URL
  */
 import { execSync } from "node:child_process";
-import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,21 +35,40 @@ mkdirSync(join(siteDist, "r"), { recursive: true });
 cpSync(join(root, "apps", "receiver", "dist"), join(siteDist, "r"), { recursive: true });
 cpSync(join(root, "apps", "sender", "dist"), siteDist, { recursive: true });
 
-// 3. Legacy /r/<CODE> links + short APK redirect.
+// 3. Legacy /r/<CODE> links + the short APK path.
 //    The receiver itself no longer depends on a rewrite: it keeps its room code
 //    in ?code=, so /r/?code=XXXXXX always resolves to the real r/index.html.
 //    This rule is only a courtesy for old /r/<CODE> URLs; on the deployed host
 //    it is not honoured (that path falls through to the sender), which is why
 //    nothing may rely on it.
-//    /apk keeps the Fire TV "Downloader" input short and lets us swap the
-//    release target without touching the SPA.
-const APK_URL =
+//
+//    The APK is served as a REAL FILE from Pages, not as a redirect:
+//    a Fire TV on-screen keyboard turns "streamcaster.pages.dev/apk" into a
+//    4-character input, and a redirect chain (GitHub -> release-assets) is what
+//    makes older Silk browsers save an HTML page instead of the binary — which
+//    then fails the install with "Problem beim Parsen des Pakets".
+//    "/apk" is an internal rewrite (status 200), so the client sees one hop.
+const APK_FALLBACK_URL =
   "https://github.com/Johi251/streamcaster-airplay-receiver/releases/latest/download/streamcaster-receiver.apk";
+const apkSource = process.env.APK_SOURCE || join(root, "airplay-receiver", "dist", "streamcaster-receiver.apk");
+const apkLocal = join(siteDist, "a.apk");
+const hasLocalApk = existsSync(apkSource);
+
+if (hasLocalApk) {
+  cpSync(apkSource, apkLocal);
+  console.log("APK hosted locally: " + apkSource + " -> site/dist/a.apk");
+} else {
+  console.warn(
+    "warn: no APK at " + apkSource + " — /apk falls back to a GitHub redirect.\n" +
+      "      Build it (airplay-receiver) or set APK_SOURCE=<path to .apk>."
+  );
+}
+
 writeFileSync(
   join(siteDist, "_redirects"),
   [
     "/r/* /r/index.html 200",
-    `/apk ${APK_URL} 302`,
+    hasLocalApk ? "/apk /a.apk 200" : `/apk ${APK_FALLBACK_URL} 302`,
     "",
   ].join("\n")
 );
@@ -57,6 +76,11 @@ writeFileSync(
 // 4. Security headers (Cloudflare Pages _headers)
 //    No CSP here: the Cast SDK injects scripts from gstatic.com at runtime —
 //    a CSP would break native Chromecast. The rest is strict.
+//
+//    The APK needs its own block: the package installer only accepts a file
+//    that is served as application/vnd.android.package-archive, and the
+//    attachment disposition makes the browser save it as "streamcaster.apk"
+//    instead of trying to render it inline.
 writeFileSync(
   join(siteDist, "_headers"),
   [
@@ -66,6 +90,18 @@ writeFileSync(
     "  X-Frame-Options: DENY",
     "  Permissions-Policy: camera=(self), microphone=(self), display-capture=(self), geolocation=()",
     "  Cross-Origin-Opener-Policy: same-origin",
+    "",
+    "/a.apk",
+    "  Content-Type: application/vnd.android.package-archive",
+    "  Content-Disposition: attachment; filename=\"streamcaster.apk\"",
+    "  X-Content-Type-Options: nosniff",
+    "  Cache-Control: public, max-age=3600",
+    "",
+    "/apk",
+    "  Content-Type: application/vnd.android.package-archive",
+    "  Content-Disposition: attachment; filename=\"streamcaster.apk\"",
+    "  X-Content-Type-Options: nosniff",
+    "  Cache-Control: public, max-age=3600",
     "",
   ].join("\n")
 );
