@@ -1,8 +1,13 @@
 {
   "name": "streamcaster",
-  "private": true,
+  "private": false,
   "version": "0.1.0",
   "description": "Free cross-platform media casting + screen mirroring webapp",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Johi251/streamcaster.git"
+  },
   "type": "module",
   "workspaces": [
     "apps/*",
@@ -20,7 +25,7 @@
     "dev:proxy": "pnpm --filter @streamcaster/proxy dev",
     "typecheck": "tsc -p packages/shared/tsconfig.json --noEmit && pnpm --filter @streamcaster/signaling typecheck && pnpm --filter @streamcaster/proxy typecheck",
     "test": "vitest run",
-    "verify": "pnpm typecheck && pnpm test",
+    "verify": "pnpm typecheck && pnpm test && node scripts/check-status.mjs",
     "deploy:signaling": "pnpm --filter @streamcaster/signaling deploy",
     "deploy:proxy": "pnpm --filter @streamcaster/proxy deploy",
     "deploy:pages": "wrangler pages deploy site/dist --project-name streamcaster",

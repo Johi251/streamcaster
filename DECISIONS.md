@@ -65,3 +65,25 @@ path segments — `/r/<CODE>` falls through to the sender's `index.html`. The qu
 form resolves to the real `/r/` directory, so it works on every host. Making the
 room deterministic also lets the Playwright suite drive both sides into the same
 room and lets a user pin a room via bookmark.
+
+## D7 — "One-Click Setup" in v1 is the QR deep link, not network discovery (decided v1)
+
+**Decision:** The v1 one-click pairing path is the receiver's QR code plus the
+sender deep link `/#join=<CODE>` (receiver side uses `/r/?code=<CODE>`, see D6).
+Scanning the QR with a phone camera opens the sender, consumes the code and
+pairs — one interaction, zero typing. The web app ships **no** UPnP/mDNS-based
+device discovery in v1.
+
+**Why not discovery in v1:** the same constraints as D1. SSDP/mDNS multicast is
+unavailable to browsers, and the sender *is* a browser app; the Cloudflare
+Worker cannot see the LAN either. Network-level discovery exists only where a
+native runtime owns the network stack: the AirPlay receiver APK advertises
+itself via mDNS (`NsdServiceManager.kt`, `UsbMdnsAdvertiser.kt`, `dnssd.c`),
+which is why iPhone → Fire TV mirroring needs zero typing. Bringing discovery
+to the web sender would require a native helper on the LAN — that is exactly
+the D1 v1.1 bridge scope, so discovery ships with it, not before.
+
+**Hardening (this release):** a malformed `#join=` value is never
+auto-connected — it is prefilled only, and a well-formed code is consumed from
+the URL so a reload cannot silently re-join a stale room
+(`e2e/specs/pairing.spec.ts`).
