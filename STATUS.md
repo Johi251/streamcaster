@@ -11,7 +11,9 @@
   `https://streamcaster.pages.dev/a.apk`, SHA-256 `4cb303e6…f1f57` verified
   against the deployed artefact on 2026-11-09
 - **Deployed:** sender/receiver on Cloudflare Pages, signaling + proxy Workers
-  (free tier), all live URLs in [ACCESS.md](ACCESS.md)
+  (free tier), all live URLs in [ACCESS.md](ACCESS.md). Production redeployed
+  2026-11-09 with the link-preview modal, deep-link hardening and APK v1.0.4
+  card; E2E 19/19 green against live afterwards.
 
 ## What works (verified)
 
@@ -51,9 +53,12 @@
    Rule going forward: no access metadata in tracked files.
 3. `docs/HANDBUCH StreamCaster.pdf` and `docs/HANDBUCH.html` stay
    **untracked on purpose** (generated exports of HANDBUCH.md).
-4. E2E suite cannot run in this sandbox (needs deployed Workers/network);
-   last full green run: 17/17 against live (Oct 2026). The new pairing
-   regression test (malformed deep link) needs the next live E2E run.
+4. ~~E2E pending~~ — **DONE 2026-11-09:** today's build deployed to
+   production (`pnpm deploy:all`, live bundle `index-BzY1unVV.js` verified ==
+   local build) and the full Playwright suite ran against live: **19/19
+   green** (1.2 min), including the new malformed-deep-link regression and
+   the link-preview-modal cancel path. The `castUrl` E2E helper now clicks
+   through the confirmation modal.
 
 ## Doc map (who holds what)
 
