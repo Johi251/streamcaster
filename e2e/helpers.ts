@@ -47,6 +47,8 @@ export async function pair(
 export async function castUrl(sender: Page, url: string): Promise<void> {
   await sender.locator("#url-input").fill(url);
   await sender.locator("#cast-url-btn").click();
+  // Link-preview modal (A1) gates every cast — confirm it, then the load runs.
+  await sender.locator(".preview-btn-open").click();
 }
 
 /** Wait until the receiver's <video> has data and is advancing. */
