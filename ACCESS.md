@@ -3,6 +3,10 @@
 Zentrale Referenz für jeden KI-Agenten, der an StreamCaster arbeitet.
 Alle Endpunkte, Deploy-Befehle und Integrationspunkte in einer Datei.
 
+> **Status:** Der aktuelle Projektzustand steht ausschließlich in
+> [STATUS.md](STATUS.md) (Single Source of Truth). Diese Datei beschreibt
+> Zugänge und Endpunkte — keinen Status. Agenten starten mit [AGENTS.md](AGENTS.md).
+
 ## Live URLs
 
 | Dienst | URL | Zweck |
@@ -209,9 +213,12 @@ gitignored** — sie werden hier nur lokalisiert, nicht im Klartext hinterlegt. 
 anderen Rechner müssen Keystore + Passwort + Wrangler-Login separat übertragen werden.
 
 ### GitHub
-- **Web-App (Haupt-Repo):** `https://github.com/Johi251/streamcaster` — **PRIVAT**.
+- **Web-App (Haupt-Repo):** `https://github.com/Johi251/streamcaster` — **ÖFFENTLICH (seit 09.11.2026, Freigabe Johann)**.
   Enthält Sender, Receiver, Worker, Proxy, Site, Docs. Stand ist auf `main` gepusht
-  (Remote `origin` konfiguriert). Push: `git push`.
+  (Remote `origin` konfiguriert). Push: `git push`. Achtung: die Git-Historie enthält
+  weiterhin Zugangs-Metadaten (CF-Account-E-Mail/-ID, LAN-IP des Test-Sticks), die vor
+  der Öffnung committet wurden — keine Zugangsdaten, aber öffentlich sichtbar. Regel ab
+  sofort: keine neuen Zugangsdaten/Metadaten in getrackte Dateien.
 - **APK-Repo:** `https://github.com/Johi251/streamcaster-airplay-receiver` — **PUBLIK**.
   Eigenständiges Android-Projekt; im Haupt-Repo via `.gitignore` ausgeklammert
   (`airplay-receiver/`). Build + Release v1.0.4 liegen dort.

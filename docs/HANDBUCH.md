@@ -1,5 +1,9 @@
 # StreamCaster — Handbuch & Projektrückblick
 
+> **Status:** Der aktuelle Projektzustand steht ausschließlich in
+> [STATUS.md](../STATUS.md) (Single Source of Truth). Dieses Handbuch
+> beschreibt Geräte und Funktionen, keinen temporären Status.
+
 ## 1. Was ist StreamCaster?
 
 StreamCaster bringt Web-Video, lokale Dateien und den Bildschirm eines Smartphones/PCs

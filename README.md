@@ -38,6 +38,11 @@ capability probing, ICE config).
 **Screen mirroring / local files** use WebRTC between sender and receiver —
 requires WebSocket-capable browsers on both ends (same Wi-Fi recommended).
 
+**One-click setup (v1):** scan the receiver's QR code — the phone opens the
+sender with a `/#join=<CODE>` deep link and pairs with zero typing. That deep
+link *is* the v1 discovery story (D7); network-level discovery arrives with
+the v1.1 DLNA bridge (D1).
+
 ## Deploy (free)
 
 ```bash
@@ -88,10 +93,21 @@ pnpm exec playwright test -c e2e/playwright.config.ts
 
 ## Docs
 
+- `STATUS.md` — **single source of truth for project state** (start here)
 - `docs/HANDBUCH.md` — device handbook + "idea → product" retrospective
 - `ACCESS.md` — live URLs, deploy, worker URLs, AI-handoff credentials
-- `DECISIONS.md` — product decisions (DLNA deferral, iOS limits, room code via URL)
+- `DECISIONS.md` — product decisions (DLNA deferral, iOS limits, room code via URL, one-click)
+- `docs/RELEASE.md` — release checklist (web track MIT, APK track GPL-3.0)
+- `docs/PLAN-Abschluss-2026-11-09.md` — closing plan for the three v1 residuals
 - `research/` — bounded URL-extraction research + findings
 - `docs/LIMITATIONS.md` — what this can NOT do and why
 - `docs/PROXY.md` — proxy Worker contract + SSRF policy
 - `docs/PROTOCOL.md` — signaling protocol reference
+
+## License
+
+The web stack in this repository is released under the **MIT License** — see
+[LICENSE](LICENSE); third-party notices in [NOTICE.md](NOTICE.md). The
+**Android AirPlay receiver APK is a separate repository** licensed **GPL-3.0**
+(because it bundles UxPlay); it carries its own `LICENSE` and `NOTICE.md`.
+Agent/AI entry points: [AGENTS.md](AGENTS.md).
