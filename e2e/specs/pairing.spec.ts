@@ -54,3 +54,17 @@ test("deep link is consumed so a reload returns to the code entry", async ({ con
   await sender.reload();
   await expect(sender.locator("#code-input")).toBeVisible();
 });
+
+/**
+ * Regression (D7 hardening): a malformed `#join=` value must never
+ * auto-connect. It is prefilled only, the chip stays "offline", and the code
+ * entry stays reachable so the user can correct it.
+ */
+test("malformed #join= deep link is prefilled but never auto-connects", async ({ context }) => {
+  const sender = await context.newPage();
+  await sender.goto("/#join=AB"); // too short — not a valid room code
+  await expect(sender.locator("#code-input")).toBeVisible({ timeout: 15_000 });
+  await expect(sender.locator("#code-input")).toHaveValue("AB");
+  await expect(sender.locator("#conn-status")).toHaveText("offline");
+  await expect(sender.locator("#connect-btn")).toBeVisible();
+});

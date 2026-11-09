@@ -22,6 +22,7 @@ import { sendFile } from "./transport/file.js";
 import { canMirror, captureCamera, captureScreen } from "./capture/capture.js";
 import { extractBest, type ExtractResult } from "./extract/useExtract.js";
 import { probeMedia, PROXY_ORIGIN } from "./extract/probe.js";
+import { parseSafeUrl, showLinkPreview } from "./ui/linkPreview.js";
 
 /**
  * Free AirPlay Receiver APK for Fire TV.
@@ -29,11 +30,11 @@ import { probeMedia, PROXY_ORIGIN } from "./extract/probe.js";
  * GitHub "latest" asset, so this URL never needs to change between releases.
  */
 const AIRPLAY_APK_URL = "/apk";
-const AIRPLAY_APK_VERSION = "1.0.3";
-const AIRPLAY_APK_SIZE = "18,4 MB";
+const AIRPLAY_APK_VERSION = "1.0.4";
+const AIRPLAY_APK_SIZE = "9,5 MB";
 const AIRPLAY_APK_ABIS = "arm64 + armv7";
 const AIRPLAY_APK_SHA256 =
-  "f7833ae8871d69637f073956b4419d9feb00a074d3773e714389234078409539";
+  "4cb303e669ab7222360e69bd03413ac866879a012bde30aaac43b9c38f0e1f57";
 /** AirPlay device name advertised via mDNS — must match the app. */
 const AIRPLAY_DEVICE_NAME = "StreamCaster TV";
 
@@ -222,7 +223,7 @@ function buildAirPlayCard(): HTMLElement {
     el(
       "p",
       { class: "note" },
-      "Needs Fire OS 6 or newer (Android 7.0+). That covers the Fire TV Stick 4K, 4K Max, Lite, the 3rd-gen Stick and the Cube; a 2nd-gen Stick still on Fire OS 5 is too old."
+      "Needs Fire OS 5 or newer (Android 5.1+). That covers Fire TV Stick 1st gen/Lite (Fire OS 5), the 2nd/3rd-gen Sticks, 4K/4K Max and the Cube."
     ),
 
     el("h3", {}, "Install on the Fire TV (one time)"),
@@ -706,6 +707,23 @@ function renderConnected(): void {
 
 async function castUrl(rawUrl: string, now: HTMLElement): Promise<void> {
   if (!rawUrl) return;
+  const parsed = parseSafeUrl(rawUrl);
+  if (!parsed.ok) {
+    setStatus(
+      parsed.reason === "scheme" ? "Only http(s) URLs are supported." : "That is not a valid URL.",
+      true
+    );
+    return;
+  }
+  // Confirm the target before casting — the link-preview modal reuses the
+  // existing `.preview-*` styles and shows the domain + full URL.
+  showLinkPreview(rawUrl, {
+    onConfirm: () => void doCast(rawUrl, now),
+    onCancel: () => setStatus("Cast cancelled."),
+  });
+}
+
+async function doCast(rawUrl: string, now: HTMLElement): Promise<void> {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -986,14 +1004,17 @@ void (async () => {
   refreshPhase();
 })();
 
-// QR deep link from the receiver page: /#join=<CODE>. Consume it, then strip it
-// from the URL — left in place, every reload silently re-joins that room and
+// QR deep link from the receiver page: /#join=<CODE>. A well-formed code is
+// consumed and auto-connected; a malformed one is only prefilled — never
+// auto-connected, and left in the URL so it can be inspected. Left in place
+// after a successful join, every reload would silently re-join that room and
 // the code field becomes unreachable, which is exactly how a stale code turns
 // into "the page skips straight past the code entry".
 const hash = location.hash.match(/join=([0-9A-Za-z]+)/);
-const deepLink = hash ? normalizeRoomCode(hash[1]!) : "";
+const raw = hash ? normalizeRoomCode(hash[1]!) : "";
+const deepLink = isValidRoomCode(raw) ? raw : "";
 if (deepLink) history.replaceState(null, "", location.pathname + location.search);
-renderHome(deepLink, Boolean(deepLink));
+renderHome(raw, Boolean(deepLink));
 
 // --------------------------------------------------------------------- PWA
 
