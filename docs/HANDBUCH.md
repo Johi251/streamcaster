@@ -47,11 +47,17 @@ und spielt ab. Beide finden sich über einen 6-stelligen Raum-Code, den der TV a
 
 - **Link casten:** Eine URL (YouTube, Vimeo, direct MP4/HLS, viele Portale) eingeben oder
   einfügen → der TV lädt und spielt ab.
+- **Link-Vorschau (Bestätigungs-Modal):** Vor jedem URL-Cast erscheint ein Modal mit
+  Domain und vollständiger URL — **Cast** führt aus, **Abbrechen** bricht ab. Nur
+  http(s)-Ziele; `javascript:`/`data:`/`file:` werden abgelehnt (Sicherheits-Gate,
+  seit 09.11.2026 live).
 - **Datei senden:** Lokale Video-/Audio-/Bilddatei vom Sender zum TV übertragen.
 - **Bildschirm- & Kamera-Spiegeln:** Der Sender streamt seinen Screen oder die Webcam
   via WebRTC zum TV.
-- **QR-Code-Pairing:** Der TV zeigt einen QR-Code; mit der Handy-Kamera scannen verbindet
-  direkt — kein Tippen des Codes nötig.
+- **QR-Code-Pairing (One-Click-Setup, D7):** Der TV zeigt einen QR-Code; mit der Handy-
+  Kamera scannen verbindet direkt über den `/#join=CODE`-Deep-Link — kein Tippen nötig.
+  Das QR-Pairing ist die offizielle v1-Form des „One-Click-Setups"; ein kaputter
+  Deep-Link-Code verbindet nie automatisch, sondern wird nur ins Eingabefeld übernommen.
 - **Fester Raum per Link:** `/r/?code=XXXXXX` öffnet den Receiver direkt in einem bestimmten
   Raum (reload-fest) — praktisch für Lesezeichen und QR-Deep-Links.
 - **Browse & Cast (Proxy):** Die „Browse & Cast"-Karte lädt eine Webseite im abgesicherten
@@ -121,7 +127,8 @@ und ohne Account auf jeden Fernseher kommen. Ziel: Sender = beliebiger Browser, 
   Fire-TV-spezifisches Zusatzmodul, sauber vom Web-Stack getrennt.
 
 **Was gebaut wurde.**
-- Sender-PWA (Link/Datei/Screen/Kamera, Browse-&-Cast, QR-Pairing, PWA-Shell).
+- Sender-PWA (Link/Datei/Screen/Kamera, Link-Vorschau-Modal vor jedem Cast,
+  Browse-&-Cast, QR-Pairing mit Deep-Link-Härtung, PWA-Shell).
 - Receiver-Web-App (QR-Idle-Screen, Player mit TV-Fernbedienung, Reconnect-Logik,
   Status-Chip).
 - Signaling-Worker (WebSocket + SSE/POST-Fallback, Room-DO mit Role-Takeover).
@@ -141,10 +148,16 @@ App installiert (v1.0.4, versionCode 5, minSdk 22), `HubActivity` startet, Raum-
 angezeigt, Video-Cast über ExoPlayer bestätigt. Der Web-Stack ist via `wrangler tail`
 stabil (keine Fehler über mehrere Stunden). **iPhone/iPad-AirPlay-Spiegelung** auf den
 Fire TV via Receiver-APK verifiziert (Bild + Steuerung) — die native Sender-Brücke
-funktioniert. Zusätzlich deckt eine Playwright-E2E-Suite (17 Tests) Pairing, URL-Cast,
-HLS (direkt und über den Proxy), Browse & Cast, WebRTC-Mirror und Chromecast-Gating ab —
-**17/17 grün gegen die Live-Umgebung** (`streamcaster.pages.dev`).
+funktioniert. Zusätzlich deckt eine Playwright-E2E-Suite (19 Tests) Pairing inkl.
+Deep-Link-Härtung, URL-Cast mit Bestätigungs-Modal (inkl. Abbruch-Pfad), HLS (direkt
+und über den Proxy), Browse & Cast, WebRTC-Mirror und Chromecast-Gating ab —
+**19/19 grün gegen die Live-Umgebung** (`streamcaster.pages.dev`, Stand 09.11.2026).
 
-**Quellcode & Zugang.** Web-App: privates Repo `Johi251/streamcaster`. APK: öffentliches
-Repo `Johi251/streamcaster-airplay-receiver`. Cloudflare-Account und GitHub-CLI sind auf
-dem Entwickler-Rechner authentifiziert; alle Zugänge sind in `ACCESS.md` dokumentiert.
+**Quellcode & Lizenz.** Web-App: `Johi251/streamcaster` — **öffentlich seit 09.11.2026**,
+Lizenz **MIT** (`LICENSE`, Hinweise in `NOTICE.md`). APK: öffentliches Repo
+`Johi251/streamcaster-airplay-receiver`, Lizenz **GPL-3.0** (weil der UxPlay-Kern
+eingebunden ist; eigene `LICENSE` und `NOTICE.md`). Die Trennung ist bewusst: der
+Web-Stack bleibt GPL-frei, damit MIT gültig ist (Details: `CONTRIBUTING.md`,
+`docs/RELEASE.md`). Cloudflare-Account und GitHub-CLI sind auf dem Entwickler-Rechner
+authentifiziert; Zugänge stehen in `ACCESS.md`, die echten Konto-Metadaten nur lokal
+in der gitignorierten `.workbuddy-ai/memory/LOCAL-ACCESS.local.md`.
