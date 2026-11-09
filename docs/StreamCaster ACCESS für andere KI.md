@@ -215,10 +215,10 @@ anderen Rechner müssen Keystore + Passwort + Wrangler-Login separat übertragen
 ### GitHub
 - **Web-App (Haupt-Repo):** `https://github.com/Johi251/streamcaster` — **ÖFFENTLICH (seit 09.11.2026, Freigabe Johann)**.
   Enthält Sender, Receiver, Worker, Proxy, Site, Docs. Stand ist auf `main` gepusht
-  (Remote `origin` konfiguriert). Push: `git push`. Achtung: die Git-Historie enthält
-  weiterhin Zugangs-Metadaten (CF-Account-E-Mail/-ID, LAN-IP des Test-Sticks), die vor
-  der Öffnung committet wurden — keine Zugangsdaten, aber öffentlich sichtbar. Regel ab
-  sofort: keine neuen Zugangsdaten/Metadaten in getrackte Dateien.
+  (Remote `origin` konfiguriert). Push: `git push`. Die Git-Historie wurde am 09.11.2026
+  von Zugangs-Metadaten befreit (filter-repo + Force-Push; unabhängiger Klon-Scan: 0 Treffer).
+  Echte Werte stehen lokal in `.workbuddy-ai/memory/LOCAL-ACCESS.local.md` (gitignored).
+  Regel ab sofort: keine neuen Zugangsdaten/Metadaten in getrackte Dateien.
 - **APK-Repo:** `https://github.com/Johi251/streamcaster-airplay-receiver` — **PUBLIK**.
   Eigenständiges Android-Projekt; im Haupt-Repo via `.gitignore` ausgeklammert
   (`airplay-receiver/`). Build + Release v1.0.4 liegen dort.

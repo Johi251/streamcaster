@@ -40,11 +40,15 @@
 1. **Done 2026-11-09 (approved by Johann):** repo made **public** on GitHub,
    all local work pushed, existing tags v1.0.0–v1.0.3 published. Future
    releases follow [docs/RELEASE.md](docs/RELEASE.md).
-2. **History note (public repo):** the git history of `ACCESS.md` contains
-   access *metadata* (Cloudflare account e-mail/ID, the test Fire TV's LAN
-   IP) committed while the repo was private. Not credentials, but publicly
-   visible; removal would need a history rewrite + force-push (only on
-   explicit request). Rule going forward: no access metadata in tracked files.
+2. **Access-metadata purge — DONE 2026-11-09 (approved by Johann):** the entire
+   git history was rewritten with `git filter-repo` (replace-text + mailmap to
+   `Johi251@users.noreply.github.com`) and force-pushed; an independent fresh
+   clone verified 0 hits across all 42 commits for the CF account e-mail/ID,
+   the test Fire TV LAN IP and all personal e-mail addresses. Caveat: GitHub
+   may still serve old commit SHAs from cache until garbage collection; no
+   forks/PRs existed, so no external copies. Real values live in the
+   untracked `.workbuddy-ai/memory/LOCAL-ACCESS.local.md` (never commit).
+   Rule going forward: no access metadata in tracked files.
 3. `docs/HANDBUCH StreamCaster.pdf` and `docs/HANDBUCH.html` stay
    **untracked on purpose** (generated exports of HANDBUCH.md).
 4. E2E suite cannot run in this sandbox (needs deployed Workers/network);

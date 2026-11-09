@@ -14,3 +14,6 @@ airplay-receiver/
 
 # Lokale APK-Testartefakte
 *.apk
+
+# Lokale Zugangsnotizen — NIE committen (seit dem History-Purge 2026-11-09)
+.workbuddy-ai/**/*.local.md
