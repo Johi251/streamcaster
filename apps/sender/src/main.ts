@@ -445,8 +445,18 @@ function buildBrowseCard(now: HTMLElement): HTMLElement {
       count?: number;
     };
     if (!d || d.__sc !== true) return;
+    // The injected script posts to '*' because it cannot know the parent's
+    // origin. So the receiving side must be strict: accept messages only from
+    // our own iframe AND only from the configured proxy origin. Without this,
+    // any window (an ad iframe, an opener, a malicious extension) could inject
+    // a cast candidate.
+    if (e.source !== iframe.contentWindow) return;
+    if (proxy && e.origin !== new URL(proxy).origin) return;
 
     if (d.type === "media" && d.url) {
+      // blob:/data:/javascript: URLs are not playable by the receiver and
+      // would be wrapped into a dead proxy request. Only http(s) is accepted.
+      if (!parseSafeUrl(d.url).ok) return;
       if (seen.has(d.url)) return;
       seen.add(d.url);
       addBrowseCandidate(d.url, d.title ?? "", listEl, now);

@@ -8,11 +8,19 @@ on:
     branches: [ main ]
   pull_request:
 
+# Least privilege: this job only reads source. Without this block the default
+# GITHUB_TOKEN may be granted write scopes, which a compromised dependency in
+# `pnpm install` could use during the build.
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
         with:

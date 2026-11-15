@@ -15,6 +15,7 @@
 
 import { guardUrl, isAllowedContentType, normalizeMime } from "./guard.js";
 import { rewriteManifest, rewriteBrowseHtml } from "./rewrite.js";
+import { limitBody } from "./limit.js";
 
 const MAX_FETCH_BYTES = 2 * 1024 * 1024; // /fetch: HTML/JSON probes
 const MAX_MANIFEST_BYTES = 1024 * 1024; // /hls: m3u8 manifests
@@ -83,24 +84,11 @@ async function handleFetch(request: Request, guardOpts: { httpsOnly?: boolean; a
     return json({ error: "content type not allowed: " + mime }, 415);
   }
 
-  const reader = upstream.body?.getReader();
-  if (!reader) return json({ error: "upstream returned no body" }, 502);
-
-  // Enforce the 2 MB cap while streaming through.
-  const limited = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      const { done, value } = await reader.read();
-      if (done) return controller.close();
-      controller.enqueue(value);
-      if (controller.desiredSize !== null && controller.desiredSize > -MAX_FETCH_BYTES) {
-        void reader.cancel();
-        controller.close();
-      }
-    },
-    cancel() {
-      void reader.cancel();
-    },
-  });
+  // Cap by bytes, not by backpressure. The old check compared desiredSize
+  // (a chunk count) with a byte limit and therefore always fired immediately,
+  // truncating every streamed body after its first chunk.
+  const limited = limitBody(upstream.body, MAX_FETCH_BYTES);
+  if (!limited) return json({ error: "upstream returned no body" }, 502);
 
   return new Response(limited, {
     status: upstream.status,
@@ -171,7 +159,10 @@ async function handleSeg(request: Request, guardOpts: { httpsOnly?: boolean; all
     if (v) headers[h] = v;
   }
 
-  return new Response(upstream.body, { status: upstream.status, headers });
+  return new Response(limitBody(upstream.body, MAX_PASSTHRU_BYTES), {
+    status: upstream.status,
+    headers,
+  });
 }
 
 // ------------------------------------------------------------------- /browse
@@ -208,16 +199,30 @@ async function handleBrowse(request: Request, guardOpts: { httpsOnly?: boolean; 
     base,
   });
 
-  // Strip headers that would block iframing or block our injected script.
+  // Strip framing/CSP headers so our injected script can run — and strip
+  // everything that describes the ORIGINAL body or the upstream session:
+  // we replaced the markup, so content-length/encoding are wrong, and a
+  // forwarded Set-Cookie would plant upstream cookies on our proxy origin
+  // where every other proxied page could read them.
   const blockedHeaders = [
     "x-frame-options",
     "content-security-policy",
     "content-security-policy-report-only",
+    "set-cookie",
+    "www-authenticate",
+    "proxy-authenticate",
+    "authorization",
+    "content-length",
+    "content-encoding",
+    "transfer-encoding",
+    "connection",
   ];
   const headers: Record<string, string> = {
     ...CORS_HEADERS,
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
   };
   for (const h of Object.keys(upstream.headers)) {
     if (blockedHeaders.includes(h.toLowerCase())) continue;
@@ -259,27 +264,13 @@ async function handlePassthru(request: Request, guardOpts: { httpsOnly?: boolean
     if (v) headers[h] = v;
   }
 
-  // Enforce an upper bound while streaming (32 MB) so a runaway asset can't
-  // blow the Worker memory limit.
-  const body = upstream.body;
-  if (body && !upstream.headers.get("content-length")) {
-    const limited = new ReadableStream<Uint8Array>({
-      async pull(controller) {
-        const { done, value } = await body.getReader().read();
-        if (done) return controller.close();
-        controller.enqueue(value);
-        if (controller.desiredSize !== null && controller.desiredSize > -MAX_PASSTHRU_BYTES) {
-          void body.cancel();
-          controller.close();
-        }
-      },
-      cancel() {
-        void body.cancel();
-      },
-    });
-    return new Response(limited, { status: upstream.status, headers });
-  }
-  return new Response(body, { status: upstream.status, headers });
+  // Same byte cap as /seg. The old version created a NEW reader on every
+  // pull() and cancelled after the first chunk, so large media was silently
+  // truncated (and a second pull would have thrown "stream locked").
+  return new Response(limitBody(upstream.body, MAX_PASSTHRU_BYTES), {
+    status: upstream.status,
+    headers,
+  });
 }
 
 // ------------------------------------------------------------------ helpers

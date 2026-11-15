@@ -76,22 +76,70 @@ export type ServerMessage =
   | { t: "state"; state: PlaybackState }
   | { t: "pong"; ts: number };
 
+/** Bound untrusted signalling frames. WebRTC SDP is the largest legit payload. */
+export const MAX_MESSAGE_CHARS = 64 * 1024;
+
+const CLIENT_TYPES = new Set(["join", "webrtc", "cmd", "state", "ping", "leave"]);
+const SERVER_TYPES = new Set([
+  "joined", "peer-joined", "peer-left", "error", "webrtc", "cmd", "state", "pong",
+]);
+const ROLES = new Set(["sender", "receiver"]);
+const WEBRTC_KINDS = new Set(["offer", "answer", "ice"]);
+const COMMAND_NAMES = new Set([
+  "load", "play", "pause", "seek", "volume", "stop", "subtitle",
+  "file-meta", "stream-start", "stream-stop",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Validate before casting to the union. A bare `"t" in data` check used to
+ * accept `{"t":"cmd"}` with no `op`, which crashed the Room DO at
+ * `msg.op.name` and killed the room's message loop. Every field the routing
+ * switch dereferences is checked here.
+ */
 export function parseClientMessage(raw: string): ClientMessage | null {
+  if (raw.length > MAX_MESSAGE_CHARS) return null;
+  let data: unknown;
   try {
-    const data: unknown = JSON.parse(raw);
-    if (typeof data !== "object" || data === null || !("t" in data)) return null;
-    return data as ClientMessage;
+    data = JSON.parse(raw);
   } catch {
     return null;
   }
+  if (!isRecord(data) || typeof data.t !== "string" || !CLIENT_TYPES.has(data.t)) return null;
+  switch (data.t) {
+    case "join":
+      if (typeof data.role !== "string" || !ROLES.has(data.role)) return null;
+      if (typeof data.code !== "string") return null;
+      break;
+    case "webrtc":
+      if (typeof data.kind !== "string" || !WEBRTC_KINDS.has(data.kind)) return null;
+      break;
+    case "cmd":
+      if (!isRecord(data.op) || typeof data.op.name !== "string" || !COMMAND_NAMES.has(data.op.name)) return null;
+      break;
+    case "state":
+      if (!isRecord(data.state)) return null;
+      break;
+    case "ping":
+      if (typeof data.ts !== "number") return null;
+      break;
+    case "leave":
+      break;
+  }
+  return data as unknown as ClientMessage;
 }
 
 export function parseServerMessage(raw: string): ServerMessage | null {
+  if (raw.length > MAX_MESSAGE_CHARS) return null;
+  let data: unknown;
   try {
-    const data: unknown = JSON.parse(raw);
-    if (typeof data !== "object" || data === null || !("t" in data)) return null;
-    return data as ServerMessage;
+    data = JSON.parse(raw);
   } catch {
     return null;
   }
+  if (!isRecord(data) || typeof data.t !== "string" || !SERVER_TYPES.has(data.t)) return null;
+  return data as unknown as ServerMessage;
 }

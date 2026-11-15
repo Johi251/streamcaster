@@ -5,10 +5,31 @@
  * - Playback state persisted in SQLite so a receiver refresh resumes
  * - Alarm-based TTL cleanup (2h after last activity)
  */
+import { MAX_MESSAGE_CHARS } from "@streamcaster/shared";
 import type { ClientMessage, PlaybackState, ReceiverCaps, Role, ServerMessage } from "@streamcaster/shared";
 
 const ROOM_TTL_MS = 2 * 60 * 60 * 1000; // 2h
 const SSE_KEEPALIVE_MS = 25_000;
+
+/** Read a POST body with a hard byte cap; returns null when it overflows. */
+async function readCapped(body: ReadableStream<Uint8Array> | null, maxBytes: number): Promise<string | null> {
+  if (!body) return "";
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let out = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > maxBytes) {
+      void reader.cancel();
+      return null;
+    }
+    out += decoder.decode(value, { stream: true });
+  }
+  return out + decoder.decode();
+}
 
 interface SocketAttachment {
   role: Role;
@@ -120,7 +141,11 @@ export class Room implements DurableObject {
   // -------------------------------------------------------------------- SSE
 
   private handleSse(request: Request): Response {
-    const role = (new URL(request.url).searchParams.get("role") as Role) || "receiver";
+    const rawRole = new URL(request.url).searchParams.get("role");
+    // The query param used to be cast straight to Role. An arbitrary value
+    // became a phantom role that could never be matched by findRole(), silently
+    // breaking takeover and message routing for that client.
+    const role: Role = rawRole === "sender" || rawRole === "receiver" ? rawRole : "receiver";
     const enc = new TextEncoder();
     let sink: SseSink | null = null;
 
@@ -166,10 +191,19 @@ export class Room implements DurableObject {
 
   private async handleSend(request: Request): Promise<Response> {
     if (request.method === "OPTIONS") return this.preflight();
-    const raw = await request.text();
+    if (request.method !== "POST") {
+      return new Response("method not allowed", { status: 405, headers: { "Access-Control-Allow-Origin": "*" } });
+    }
+    // /send is public and unauthenticated. Without a cap a single POST can
+    // stream an arbitrarily large body into the Durable Object before the
+    // parser ever sees it.
+    const raw = await readCapped(request.body, MAX_MESSAGE_CHARS);
+    if (raw === null) {
+      return new Response("message too large", { status: 413, headers: { "Access-Control-Allow-Origin": "*" } });
+    }
     const { parseClientMessage } = await import("@streamcaster/shared");
     const msg = parseClientMessage(raw);
-    if (!msg) return new Response("bad message", { status: 400 });
+    if (!msg) return new Response("bad message", { status: 400, headers: { "Access-Control-Allow-Origin": "*" } });
     await this.routeClientMessage(msg);
     return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*" } });
   }
@@ -194,7 +228,7 @@ export class Room implements DurableObject {
   // ------------------------------------------------------------- Message flow
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    if (typeof message !== "string") return;
+    if (typeof message !== "string" || message.length > MAX_MESSAGE_CHARS) return;
     const { parseClientMessage } = await import("@streamcaster/shared");
     const msg = parseClientMessage(message);
     if (!msg) return;

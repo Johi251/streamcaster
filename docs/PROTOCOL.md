@@ -11,9 +11,12 @@ per room code. Room codes: 6 chars from a no-confusable alphabet
 
 ## Join flow
 
-1. Receiver opens `/r/<CODE>` → WS `/ws?code=<CODE>` → sends
+1. Receiver opens `/r/?code=<CODE>` → WS `/ws?code=<CODE>` → sends
    `{t:"join", role:"receiver", caps}`. Server replies `joined`, persists caps,
    broadcasts `peer-joined` to any existing sender.
+   **Note:** only the query form works on Cloudflare Pages. The path form
+   `/r/<CODE>` is served as the sender SPA by the Pages rewrite and is not a
+   receiver URL (verified against the live deployment, 2026-11-15).
 2. Sender opens `/#join=<CODE>` (QR target) → WS `/ws?code=<CODE>` →
    `{t:"join", role:"sender"}` → `joined` (includes `peerCaps` of receiver and
    persisted playback `state`).

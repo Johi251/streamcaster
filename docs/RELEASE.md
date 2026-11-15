@@ -42,8 +42,8 @@ action. Johann approves each external step individually.
 - [ ] **APK release** happens in the receiver repo under GPL-3.0; afterwards  
   verify the `/apk` redirect still points at the new "latest" asset and  
   the SHA-256 shown in the sender's AirPlay card matches the asset
-- [ ] Flip repo visibility **public** (currently private) — only after the  
-  first public tag, and only with Johann's explicit go
+- [x] Repo visibility **public** — done 2026-11-09 with Johann's explicit go.  
+  No action needed for subsequent releases.
 
 ## 4. Post-release verification
 

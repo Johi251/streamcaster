@@ -136,8 +136,9 @@ verbundene Ansicht; sonst den Wartezustand mit sichtbarem Code. Clients sollten
 - **Verifiziert (31.10.):** iPhone/iPad-AirPlay-Spiegelung auf Fire TV via Receiver-APK
   funktioniert — Bild erscheint, Steuerung über AirPlay. Damit ist die volle
   Sender-Brücke (Web-PWA **und** native AirPlay) abgedeckt.
-- **Offen:** E2E-Playwright-Suite (13 Specs) bewusst aufgeschoben; Sender-Gegenstelle
-  (Web-App → TV) in vorherigen Sessions bereits geprüft.
+- **E2E-Playwright-Suite:** umgesetzt und grün (19 Specs gegen die Live-Umgebung),
+  CI-Quality-Gate aktiv. Der jeweils aktuelle Prüfstand steht in `STATUS.md`
+  im Repo-Root (Single Source of Truth).
 
 ### Intercepting-Proxy (Option C — umgesetzt)
 - Proxy-Route `/browse?url=URL` lädt Zielseite, injiziert Media-Capture-Script

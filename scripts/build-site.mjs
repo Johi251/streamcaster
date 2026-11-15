@@ -74,8 +74,9 @@ writeFileSync(
 );
 
 // 4. Security headers (Cloudflare Pages _headers)
-//    No CSP here: the Cast SDK injects scripts from gstatic.com at runtime —
-//    a CSP would break native Chromecast. The rest is strict.
+//    No global CSP: the Cast SDK injects scripts from gstatic.com at runtime —
+//    a CSP would break native Chromecast. The receiver (/r/*) does not load
+//    that SDK, so it gets a narrow CSP with sink-only directives.
 //
 //    The APK needs its own block: the package installer only accepts a file
 //    that is served as application/vnd.android.package-archive, and the
@@ -90,6 +91,9 @@ writeFileSync(
     "  X-Frame-Options: DENY",
     "  Permissions-Policy: camera=(self), microphone=(self), display-capture=(self), geolocation=()",
     "  Cross-Origin-Opener-Policy: same-origin",
+    "",
+    "/r/*",
+    "  Content-Security-Policy: object-src 'none'; base-uri 'self'; form-action 'self'",
     "",
     "/a.apk",
     "  Content-Type: application/vnd.android.package-archive",

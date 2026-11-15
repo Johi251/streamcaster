@@ -56,6 +56,14 @@ export function guardUrl(raw: string | null, opts: GuardOptions = {}): GuardResu
   if (opts.httpsOnly !== false && url.protocol !== "https:") {
     return { ok: false, status: 400, reason: "https only" };
   }
+  if (url.username || url.password) {
+    return { ok: false, status: 400, reason: "credentials in url" };
+  }
+  // An arbitrary port turns the relay into a port scanner. Media and HTML
+  // origins use the default port; dev fixtures opt out via allowPrivate.
+  if (url.port && url.port !== "80" && url.port !== "443") {
+    return { ok: false, status: 403, reason: "non-standard port blocked" };
+  }
   if (opts.allowPrivate) {
     return { ok: true, status: 200, reason: "", url };
   }
@@ -63,15 +71,26 @@ export function guardUrl(raw: string | null, opts: GuardOptions = {}): GuardResu
   if (BLOCKED_HOSTNAMES.has(host)) {
     return { ok: false, status: 403, reason: "blocked host" };
   }
-  // Block obvious private-range literals (IPv4 + bracketed IPv6).
+  // WHATWG URL normalizes decimal/octal/hex IPv4 (2130706433, 0x7f000001)
+  // to 127.0.0.1, so the literals below already catch those spellings.
+  // IPv6 needs its own pass: unique-local, link-local, unspecified and
+  // IPv4-mapped addresses are all routable from the edge in some runtimes.
+  const bareV6 = host.replace(/^\[/, "").replace(/\]$/, "");
+  const privateV6 =
+    /^(?:fc|fd)[0-9a-f]{2}:/i.test(bareV6) ||
+    /^fe[89ab][0-9a-f]:/i.test(bareV6) ||
+    bareV6.startsWith("::");
   if (
     /^(10|127|0)\./.test(host) ||
     /^192\.168\./.test(host) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
     /^169\.254\./.test(host) ||
     host.startsWith("192.0.2.") ||
+    privateV6 ||
     host.endsWith(".internal") ||
-    host.endsWith(".local")
+    host.endsWith(".local") ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".localdomain")
   ) {
     return { ok: false, status: 403, reason: "private address blocked" };
   }

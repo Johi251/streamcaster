@@ -151,7 +151,8 @@ Fire TV via Receiver-APK verifiziert (Bild + Steuerung) — die native Sender-Br
 funktioniert. Zusätzlich deckt eine Playwright-E2E-Suite (19 Tests) Pairing inkl.
 Deep-Link-Härtung, URL-Cast mit Bestätigungs-Modal (inkl. Abbruch-Pfad), HLS (direkt
 und über den Proxy), Browse & Cast, WebRTC-Mirror und Chromecast-Gating ab —
-**19/19 grün gegen die Live-Umgebung** (`streamcaster.pages.dev`, Stand 09.11.2026).
+**19/19 grün gegen die Live-Umgebung** (`streamcaster.pages.dev`, Stand 09.11.2026;
+jeweils aktueller Prüfstand in [STATUS.md](../STATUS.md)).
 
 **Quellcode & Lizenz.** Web-App: `Johi251/streamcaster` — **öffentlich seit 09.11.2026**,
 Lizenz **MIT** (`LICENSE`, Hinweise in `NOTICE.md`). APK: öffentliches Repo
@@ -161,3 +162,35 @@ Web-Stack bleibt GPL-frei, damit MIT gültig ist (Details: `CONTRIBUTING.md`,
 `docs/RELEASE.md`). Cloudflare-Account und GitHub-CLI sind auf dem Entwickler-Rechner
 authentifiziert; Zugänge stehen in `ACCESS.md`, die echten Konto-Metadaten nur lokal
 in der gitignorierten `.workbuddy-ai/memory/LOCAL-ACCESS.local.md`.
+
+---
+
+## 7. Dokumentation & Nachweise
+
+Dieses Handbuch ist die **Geräte- und Funktionsreferenz**. Versionen, Deploy-Stände
+und Testergebnisse stehen ausschließlich in [STATUS.md](../STATUS.md)
+(Single Source of Truth).
+
+| Thema | Dokument |
+|---|---|
+| Einstieg für KI-Agenten, Arbeitsregeln | [AGENTS.md](../AGENTS.md) |
+| Zugänge, Live-URLs, Deploy | [ACCESS.md](../ACCESS.md) |
+| Produktentscheidungen D1–D7 | [DECISIONS.md](../DECISIONS.md) |
+| Grenzen & Nicht-Ziele | [LIMITATIONS.md](LIMITATIONS.md) |
+| Protokoll-Referenz | [PROTOCOL.md](PROTOCOL.md) |
+| Proxy-Vertrag & SSRF-Regeln | [PROXY.md](PROXY.md) |
+| Release-Checkliste (MIT / GPL-3.0) | [RELEASE.md](RELEASE.md) |
+| Senior-Code-Review & Team-Regeln | [TEAM-QUALITY-GUIDE.md](TEAM-QUALITY-GUIDE.md) |
+| Security-Review (Cybersecurity) | [SECURITY-REVIEW.md](SECURITY-REVIEW.md) |
+| Vergleich mit „TV Cast" (2kit) | [ANALYSE-TVCAST-VERGLEICH.md](ANALYSE-TVCAST-VERGLEICH.md) |
+| Monetarisierung — Ausblick | [MONETARISIERUNG-AUSBLICK.md](MONETARISIERUNG-AUSBLICK.md) |
+| Lizenz-Optionen / White-Label — Ausblick | [LIZENZ-OPTIONEN-AUSBLICK.md](LIZENZ-OPTIONEN-AUSBLICK.md) |
+| Gerüst für Windows/macOS/Linux/iOS/iPadOS/Web | [COPY-PASTE-PROMPT-MULTIPLATFORM.md](../COPY-PASTE-PROMPT-MULTIPLATFORM.md) |
+
+**Zu den Dateiformaten:** `docs/HANDBUCH.md`, `docs/HANDBUCH.html` und
+`docs/HANDBUCH StreamCaster.pdf` sind **dasselbe Handbuch in drei Formaten** —
+die HTML- und PDF-Dateien sind Exporte, keine eigenständigen Handbücher. Sie
+werden aus der Markdown-Quelle erzeugt mit `node docs/guides/build-handbuch.mjs`
+und liegen seit 15.11.2026 versioniert im Repository. Die vier Ein-Seiten-PDFs
+(`StreamCaster-Quickstart-*.pdf`, `StreamCaster-Ultrakurzanleitung-*.pdf`) sind
+dagegen **eigenständige Kurzanleitungen** (`node docs/guides/build.mjs`).

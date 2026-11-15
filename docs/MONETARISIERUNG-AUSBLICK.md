@@ -152,22 +152,20 @@ bereits ~975 DAU (~3.900 MAU), weil eCPM und Ad-Dichte dreimal höher liegen.
 
 ---
 
-## 6. Gegengründe / Risiken (vor jeder Entscheidung prüfen)
+## 6. Umsetzungsaufwand & Compliance (neutral, vor jeder Entscheidung prüfen)
 
-- **Produktversprechen:** „keine Werbung, kein Tracking, MIT, selbst hostbar" ist
-  der Kernunterschied zu TVcast (§4 des Vergleichs). Personalisierte Werbung — also
-  die, die den hohen eCPM zahlt — braucht genau das Tracking, das wir ausschließen.
-  Ohne Einwilligung sinkt der eCPM in der EU deutlich.
-- **Recht & Compliance:** GDPR/TTDSG-Einwilligung, iOS ATT, UMP-Consent-Flow,
-  Datenschutzerklärung, AdMob-Richtlinien. Ein Tool, das beliebige Web-Videos über
-  einen Proxy castet, ist policy- und urheberrechtlich heikler als ein
-  Standard-Utility — vor einer Monetarisierung juristisch zu prüfen.
-- **Open Source:** Bei MIT kann jeder eine werbefreie Variante bauen. Das deckelt
-  die Zahlungsbereitschaft und macht ein Ad-Modell angreifbar.
+- **Einwilligung & Plattformregeln:** GDPR/TTDSG-Consent, iOS ATT, UMP-Consent-Flow,
+  Datenschutzerklärung und die jeweils gültigen Richtlinien des Ad-Netzwerks.
+  Personalierte und nicht-personalisierte Werbung liefern unterschiedliche eCPMs —
+  das gehört in die Kalkulation, nicht in die Schätzung.
 - **DRM** bleibt außen vor ([LIMITATIONS.md](LIMITATIONS.md)); „direkt streamen"
-  gilt nur für freie Streams — einbezahlen auf DRM-Inhalte ist kein Geschäftsmodell.
+  gilt nur für freie Streams.
 - **App-Store-Review:** Preis/Abo/Ads erfordern korrekte Angaben, Abo-Bedingungen,
   Widerruf und Restore-Flow. Das ist eigener Implementierungs- und Testaufwand.
+- **Lizenzfrage ist getrennt zu betrachten:** Welche Modelle unter einer anderen
+  Lizenz denkbar sind (u. a. White-Label, Dual Licensing, BSL, AGPL) steht in
+  [LIZENZ-OPTIONEN-AUSBLICK.md](LIZENZ-OPTIONEN-AUSBLICK.md). Die Zahlen hier
+  gelten unabhängig von der gewählten Lizenz.
 
 ---
 
@@ -181,9 +179,11 @@ Reihenfolge, falls das Thema *nach* der Funktionsperfektion jemals aufgegriffen 
    kleiner Nutzung den höchsten Netto-Erlös liefert.
 3. **Abo** nur, wenn ein echter, wiederkehrender Mehrwert entsteht (z. B. gehostete
    Instanz, eigene Infrastruktur, Geräte-Sync) — nicht für das bestehende Feature-Set.
-4. **Werbung nicht empfohlen.** Sie widerspricht dem Produktkern, braucht ~43.000 MAU
-   für $1.000/Monat im vorsichtigen Fall und funktioniert nur mit dem Pre-Roll,
-   den Johann ausdrücklich ausschließt.
+4. **Für die private Variante bleibt Werbung ausgeschlossen** — der Pre-Roll ist
+   genau die „Wartezeit", die §0 beschreibt. Wie ein *anderes, neu lizenziertes*
+   Zukunftsprodukt rechtlich und lizenzseitig aufgesetzt werden könnte, ist
+   bewusst getrennt in [LIZENZ-OPTIONEN-AUSBLICK.md](LIZENZ-OPTIONEN-AUSBLICK.md)
+   dargestellt; die Zahlen oben bleiben davon unberührt.
 
 Jede Umsetzung bräuchte ohnehin eine neue Entscheidung in `DECISIONS.md` — laut
 `AGENTS.md` darf eine aufgezeichnete Entscheidung nicht stillschweigend umgangen
