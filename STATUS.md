@@ -47,6 +47,11 @@
    in the same commit, remaining items live in its backlog P1–P3). TV-Cast
    adoption roadmap (cast-on-play, share target, queue) in
    [docs/ANALYSE-TVCAST-VERGLEICH.md](docs/ANALYSE-TVCAST-VERGLEICH.md) §3.
+   **Ausblick 2026-11-15:** [docs/MONETARISIERUNG-AUSBLICK.md](docs/MONETARISIERUNG-AUSBLICK.md)
+   beziffert Kaufpreis / Abo / Werbung als *Denkmodell nach* der Funktionsperfektion.
+   **Nicht umgesetzt, keine Freigabe:** weiterhin keine Werbung, kein Tracking,
+   keine IAP. Der Begriff „ohne Wartezeit" wurde klargestellt = kein Werbe-Pre-Roll,
+   nicht Netzwerklatenz (in der Vergleichsanalyse korrigiert).
 
 1. **Done 2026-11-09 (approved by Johann):** repo made **public** on GitHub,
    all local work pushed, existing tags v1.0.0–v1.0.3 published. Future
@@ -87,4 +92,5 @@
 | Proxy contract + SSRF policy | `docs/PROXY.md` |
 | Team quality guide (review + practices + backlog) | `docs/TEAM-QUALITY-GUIDE.md` |
 | TV Cast (2kit) comparison + adoption roadmap | `docs/ANALYSE-TVCAST-VERGLEICH.md` |
+| Monetization outlook (explicitly NOT implemented) | `docs/MONETARISIERUNG-AUSBLICK.md` |
 | Multi-platform scaffold prompt (reusable) | `COPY-PASTE-PROMPT-MULTIPLATFORM.md` |

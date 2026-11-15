@@ -106,6 +106,7 @@ Details in `docs/TEAM-QUALITY-GUIDE.md`.
 - `docs/HANDBUCH.md` — device handbook + "idea → product" retrospective
 - `docs/TEAM-QUALITY-GUIDE.md` — senior code review, team practices, prioritized backlog
 - `docs/ANALYSE-TVCAST-VERGLEICH.md` — comparison vs. "TV Cast" (2kit) + adoption roadmap
+- `docs/MONETARISIERUNG-AUSBLICK.md` — monetization outlook + forecast (explicitly **not implemented**: no ads, no tracking, no IAP)
 - `COPY-PASTE-PROMPT-MULTIPLATFORM.md` — reusable scaffold prompt (Windows/macOS/Linux/iOS/iPadOS/Web)
 - `ACCESS.md` — live URLs, deploy, worker URLs, AI-handoff credentials
 - `DECISIONS.md` — product decisions (DLNA deferral, iOS limits, room code via URL, one-click)

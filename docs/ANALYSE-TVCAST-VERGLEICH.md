@@ -34,15 +34,21 @@ Standort, Nutzerdaten, Diagnose).
 | Empfänger-Auswahl | „Gerät wählen" (Bonjour/MDNS) | Room-Code/QR — Gerät egal | Wir koppeln geräteunabhängig über den Code, nicht per Gerätesuche |
 | Empfänger-Hardware | Chromecast, Samsung/LG/Sony, Roku, Fire TV | **Jeder Browser** + Fire TV/Android TV (APK) + Chromecast-Gating | Unser Web-Empfänger läuft auch auf Echo Show, alten Smart-TVs, Laptop |
 | Kosten/Werbung/Tracking | Gratis mit Werbung, Premium-IAP, Tracking | Keins, MIT-Open-Source, selbst hostbar | Kernunterschied |
-| Qualitätssicherung | unbekannt | 47 Unit-Tests + 19/19 E2E gegen die Live-Umgebung + CI-Gate | |
+| Qualitätssicherung | unbekannt | CI-Gate + Unit-/E2E-Suite gegen die Live-Umgebung (aktuelle Zahlen: [../STATUS.md](../STATUS.md)) | |
 
 ## 3. Was wir uns abschauen (Roadmap-Ideen, priorisiert)
 
 1. **„Cast on play" im Browse-iframe (P1):** TV Casts Stärke ist der null-Klick-Flow.
-   Wir erfassen Medien-URLs im iframe bereits passiv (BROWSE_INJECT). Konkret:
-   Pause/play-Events der erkannten `<video>`-Elemente als Trigger — beim ersten
-   `play`-Event den besten Kandidaten automatisch laden (mit Link-Preview-Bestätigung,
-   damit der D7-Flow von `DECISIONS.md` erhalten bleibt).
+   **Präzisierung (verifiziert 2026-11-15):** `BROWSE_INJECT` in
+   `apps/proxy/src/rewrite.ts` hookt `play()`/`playing`/`loadstart` und neue
+   `<video>`-Elemente **bereits** und postet `type:'media'`; der Sender macht daraus
+   nur einen Button. Es fehlt also **nur die automatische Reaktion**, nicht die
+   Erfassung — ein kleiner Eingriff, kein Architekturprojekt. Vor der Umsetzung zu
+   lösen: Autoplay-/Werbe-False-Positives und `blob:`-/`data:`-URLs werden aktuell
+   **nicht** gefiltert (tote Loads auf dem TV), der Link-Preview-D7-Flow würde
+   umgangen, und es gibt **keine E2E-Spec** für den Media-Capture-Pfad. Empfehlung:
+   Auto-Cast nur bei genau einem plausiblen `http(s)`-Kandidaten, mit Debounce,
+   einmal pro Navigation und sichtbarem Rückgängig — plus einer neuen Spec.
 2. **PWA Share-Target (P1):** Android-„Teilen → StreamCaster" aus jedem Browser/App
    heraus. `manifest.webmanifest` um `share_target` erweitern, Sender-Deep-Link mit
    vorbefüllter URL. Kleiner Aufwand, großer UX-Gewinn — TV Cast hat das als
@@ -56,6 +62,12 @@ Standort, Nutzerdaten, Diagnose).
 ## 4. Was wir bewusst NICHT übernehmen
 
 - **Werbung, In-App-Käufe, Tracking, Daten-Sammeln** — Gegensatz zum Projektziel.
+  **Begriffsklärung (korrigiert 2026-11-15):** „ohne Wartezeit" meint den
+  **Werbe-Pre-Roll vor dem Video**, nicht die Netzwerklatenz. Der Pre-Roll ist
+  zugleich das lukrativste Werbeformat (CPM $7–12) — ihn zu entfernen heißt, dem
+  Werbemodell seinen stärksten Umsatzträger zu nehmen. Bezifferter Ausblick,
+  was Monetarisierung *nach* Fertigstellung bedeuten würde (bewusst **nicht
+  umgesetzt**): [MONETARISIERUNG-AUSBLICK.md](MONETARISIERUNG-AUSBLICK.md).
 - **Native Gerätesuche als Kopplung** (mDNS/Bonjour-Only): schließt Router-Isolation und
   aktive AP-Isolation aus; unser QR/Code-Pairing funktioniert auch dort.
 - **Closed Source / Lock-in**: Unser Empfänger läuft im Browser des Geräts — kein
