@@ -107,6 +107,50 @@
       </div>
     </div>
 
+    <!-- Compatibility guard (plain ES5, runs before the module bundle):
+         browsers without module support ignore the module script entirely and
+         used to show a white screen. This script parses even on old TV
+         browsers (Fire OS 5 Silk, Tizen, webOS) and renders a readable
+         fallback that points at the receiver APK instead. -->
+    <script>
+      (function () {
+        var missing = [];
+        if (typeof Promise === "undefined") missing.push("Promise");
+        if (typeof fetch === "undefined") missing.push("fetch");
+        if (typeof WebSocket === "undefined") missing.push("WebSocket");
+        if (typeof RTCPeerConnection === "undefined" &&
+            typeof webkitRTCPeerConnection === "undefined") missing.push("WebRTC");
+        if (missing.length === 0) return;
+        var app = document.getElementById("app");
+        if (app) app.style.display = "none";
+        var wrap = document.createElement("div");
+        wrap.setAttribute("style", "font-family:sans-serif;background:#0b0d12;color:#e8eaf0;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px");
+        var card = document.createElement("div");
+        card.setAttribute("style", "max-width:560px;line-height:1.6");
+        var h = document.createElement("h1");
+        h.setAttribute("style", "font-size:22px;margin:0 0 12px");
+        h.textContent = "\uD83D\uDCE1 StreamCaster";
+        var p1 = document.createElement("p");
+        p1.setAttribute("style", "margin:0 0 16px");
+        p1.textContent = "This browser is too old for the web receiver (missing: " + missing.join(", ") + ").";
+        var p2 = document.createElement("p");
+        p2.setAttribute("style", "margin:0 0 16px");
+        p2.textContent = "On a Fire TV Stick, install the free receiver app instead \u2014 open this address in the \u201CDownloader\u201D app:";
+        var b = document.createElement("b");
+        b.setAttribute("style", "font-size:18px;word-break:break-all");
+        b.textContent = (location.host || "streamcaster.pages.dev") + "/apk";
+        var p3 = document.createElement("p");
+        p3.setAttribute("style", "margin:0;color:#8ab4ff");
+        p3.textContent = "Dieser Browser ist zu alt \u2014 bitte die App installieren.";
+        card.appendChild(h);
+        card.appendChild(p1);
+        card.appendChild(p2);
+        card.appendChild(b);
+        card.appendChild(p3);
+        wrap.appendChild(card);
+        document.body.appendChild(wrap);
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

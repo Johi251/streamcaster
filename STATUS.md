@@ -4,7 +4,7 @@
 > document links here and must not duplicate status text.
 > Agents: read this first, then [AGENTS.md](AGENTS.md) for working rules.
 
-- **last-updated:** 2026-11-09
+- **last-updated:** 2026-11-15
 - **Web-Stack version:** v1.1.4-equivalent (tags up to `v1.0.3`; see ACCESS.md
   versioning for the detail history)
 - **APK (separate repo, GPL-3.0):** v1.0.4 — live on
@@ -12,8 +12,9 @@
   against the deployed artefact on 2026-11-09
 - **Deployed:** sender/receiver on Cloudflare Pages, signaling + proxy Workers
   (free tier), all live URLs in [ACCESS.md](ACCESS.md). Production redeployed
-  2026-11-09 with the link-preview modal, deep-link hardening and APK v1.0.4
-  card; E2E 19/19 green against live afterwards.
+  2026-11-15 with the quality-hardening round (CI gate, sender peer-leak fix,
+  receiver time/HLS-detection fixes, old-device ES5 fallback overlay, es2018
+  targets); E2E 19/19 green against live afterwards.
 
 ## What works (verified)
 
@@ -27,6 +28,8 @@
 | Sender link-preview confirm modal before casting | ✅ since 2026-11-09 (A1) |
 | One-click setup = QR + `/#join=` deep link | ✅ declared in D7; malformed deep links never auto-connect (hardened 2026-11-09) |
 | AirPlay mirroring iPhone → Fire TV via APK | ✅ verified on hardware (31.10.) |
+| Old-device fallback: ES5 overlay (readable page + APK pointer instead of white screen) + es2018 build targets | ✅ live, verified 2026-11-15 |
+| CI quality gate (typecheck + unit + build on push/PR) | ✅ `.github/workflows/ci.yml` since 2026-11-15 |
 
 ## v1 residual status (closing plan: docs/PLAN-Abschluss-2026-11-09.md)
 
@@ -38,6 +41,12 @@
 | Sender APK card metadata | ✅ FIXED 2026-11-09 — was showing v1.0.3/18.4 MB/old SHA; now matches the deployed v1.0.4 artefact |
 
 ## Open items
+
+0. **Quality round 2026-11-15:** full senior review done
+   ([docs/TEAM-QUALITY-GUIDE.md](docs/TEAM-QUALITY-GUIDE.md) — findings fixed
+   in the same commit, remaining items live in its backlog P1–P3). TV-Cast
+   adoption roadmap (cast-on-play, share target, queue) in
+   [docs/ANALYSE-TVCAST-VERGLEICH.md](docs/ANALYSE-TVCAST-VERGLEICH.md) §3.
 
 1. **Done 2026-11-09 (approved by Johann):** repo made **public** on GitHub,
    all local work pushed, existing tags v1.0.0–v1.0.3 published. Future
@@ -76,3 +85,6 @@
 | What is NOT possible and why | `docs/LIMITATIONS.md` |
 | Protocol reference | `docs/PROTOCOL.md` |
 | Proxy contract + SSRF policy | `docs/PROXY.md` |
+| Team quality guide (review + practices + backlog) | `docs/TEAM-QUALITY-GUIDE.md` |
+| TV Cast (2kit) comparison + adoption roadmap | `docs/ANALYSE-TVCAST-VERGLEICH.md` |
+| Multi-platform scaffold prompt (reusable) | `COPY-PASTE-PROMPT-MULTIPLATFORM.md` |

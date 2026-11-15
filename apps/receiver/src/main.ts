@@ -204,9 +204,17 @@ function toast(message: string) {
 }
 
 export function formatTime(seconds: number): string {
-  const m = Math.floor(Math.abs(seconds) / 60);
-  const s = Math.floor(Math.abs(seconds) % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  // Live streams report Infinity/NaN — a finite guard keeps the seek bar sane.
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const total = Math.floor(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const ss = s.toString().padStart(2, "0");
+  // Movies run past an hour: "95:30" is unreadable on a TV, "1:35:30" is not.
+  return h > 0
+    ? `${h}:${m.toString().padStart(2, "0")}:${ss}`
+    : `${m}:${ss}`;
 }
 
 function parseUrl(url: string) {
@@ -492,13 +500,17 @@ async function loadPlayer(url: string, title: string) {
   DOM.playPauseOverlayEl.classList.remove("visible");
 
   try {
-    // Determine type from URL
-    const type: PlayerType =
-      url.startsWith("ws") || url.startsWith("wss")
-        ? "webrtc"
-        : url.endsWith(".m3u8") || url.includes("/hls")
-          ? "hls"
-          : "mp4";
+    // Determine type from URL. The extension check must look at the
+    // pathname, not the whole URL: "…/video.m3u8?token=1" ends in the query
+    // string and would be misdetected as (broken) mp4.
+    let type: PlayerType = "mp4";
+    try {
+      const u = new URL(url, location.href);
+      if (u.protocol === "ws:" || u.protocol === "wss:") type = "webrtc";
+      else if (/\.m3u8$/i.test(u.pathname) || u.pathname.includes("/hls")) type = "hls";
+    } catch {
+      if (/\.m3u8(\?|$)/i.test(url) || url.includes("/hls")) type = "hls";
+    }
 
     player = createPlayer(type, url, DOM.videoEl);
     state.playing = true;
@@ -778,7 +790,10 @@ function bindEvents() {
   });
 
   DOM.videoEl.addEventListener("loadedmetadata", () => {
-    state.duration = DOM.videoEl.duration;
+    // Live streams report Infinity/NaN — keep the previous duration instead of
+    // poisoning the seek-bar math (position/duration).
+    const d = DOM.videoEl.duration;
+    if (Number.isFinite(d) && d > 0) state.duration = d;
     DOM.totalDurationEl.textContent = formatTime(state.duration);
     updateSeekBar();
   });
@@ -857,6 +872,13 @@ async function bootstrap(): Promise<void> {
 window.addEventListener("error", (e: ErrorEvent) => {
   console.error("[StreamCaster] Unhandled error:", e.error);
   toast(`Error: ${e.message}`);
+});
+
+// Async failures (WebRTC negotiation, blob playback, fetch) surface as promise
+// rejections — without this handler they vanished silently on the TV.
+window.addEventListener("unhandledrejection", (e: PromiseRejectionEvent) => {
+  console.error("[StreamCaster] Unhandled rejection:", e.reason);
+  toast(`Error: ${e.reason instanceof Error ? e.reason.message : String(e.reason)}`);
 });
 
 // Unloading: clean up

@@ -812,6 +812,10 @@ async function startStreaming(kind: "screen" | "camera", now: HTMLElement): Prom
   try {
     setStatus("Starting " + kind + "…");
     const stream = kind === "screen" ? await captureScreen() : await captureCamera();
+    // Retire a previous mirror/camera/file peer first — replacing `peer`
+    // without stop() leaked the old RTCPeerConnection (and on Android kept
+    // the screen-capture indicator alive for the whole session).
+    peer?.stop();
     peer = new SenderPeer(
       (k, p) => client?.send({ t: "webrtc", kind: k as "offer" | "ice", payload: p }),
       () => setStatus("WebRTC connection failed — make sure the receiver supports WebRTC or both devices are on the same Wi-Fi.", true)
@@ -834,6 +838,7 @@ async function pickAndSendFile(now: HTMLElement): Promise<void> {
     if (!file || !client) return;
     try {
       setStatus(`Sending ${file.name} (${(file.size / 1e6).toFixed(1)} MB)…`);
+      peer?.stop(); // retire a previous mirror/file peer before replacing it
       peer = new SenderPeer(
         (k, p) => client?.send({ t: "webrtc", kind: k as "offer" | "ice", payload: p }),
         () => setStatus("WebRTC failed — local file transfer needs both devices on the same Wi-Fi.", true)

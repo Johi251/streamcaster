@@ -9,7 +9,10 @@ export default defineConfig({
     proxy: {},
   },
   build: {
-    target: "es2020",
+    // es2018 (not the modern default): keeps the receiver playable on older
+    // TV browsers (updated Fire OS 5 Silk ≈ Chromium 59-63, old Tizen/webOS).
+    // Browsers older than that get the ES5 fallback overlay in index.html.
+    target: "es2018",
     outDir: "dist",
     emptyOutDir: true,
   },

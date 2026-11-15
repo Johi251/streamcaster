@@ -84,17 +84,29 @@ for production.)
 
 ```bash
 pnpm verify                  # typecheck + unit tests (vitest)
-# E2E (Playwright, 17 tests) against the deployed site:
+# E2E (Playwright, 19 tests) against the deployed site:
 E2E_BASE_URL=https://streamcaster.pages.dev \
 E2E_PROXY_URL=https://streamcaster-proxy.streamcaster.workers.dev \
 E2E_SIGNALING_URL=https://streamcaster-signaling.streamcaster.workers.dev \
 pnpm exec playwright test -c e2e/playwright.config.ts
 ```
 
+CI runs the same gates (typecheck + unit tests + production build) on every
+push/PR — see `.github/workflows/ci.yml`. Deploy stays manual by design.
+
+**Very old TV browsers** (pre-Chromium-80 Silk, old Tizen/webOS) can't parse
+modern bundles — instead of a white screen they get an ES5 fallback overlay
+pointing at the receiver APK; the web builds target `es2018` for the rest.
+Details in `docs/TEAM-QUALITY-GUIDE.md`.
+
 ## Docs
 
 - `STATUS.md` — **single source of truth for project state** (start here)
+- `AGENTS.md` — entry point + working rules for AI agents (CLAUDE.md/GEMINI.md point here)
 - `docs/HANDBUCH.md` — device handbook + "idea → product" retrospective
+- `docs/TEAM-QUALITY-GUIDE.md` — senior code review, team practices, prioritized backlog
+- `docs/ANALYSE-TVCAST-VERGLEICH.md` — comparison vs. "TV Cast" (2kit) + adoption roadmap
+- `COPY-PASTE-PROMPT-MULTIPLATFORM.md` — reusable scaffold prompt (Windows/macOS/Linux/iOS/iPadOS/Web)
 - `ACCESS.md` — live URLs, deploy, worker URLs, AI-handoff credentials
 - `DECISIONS.md` — product decisions (DLNA deferral, iOS limits, room code via URL, one-click)
 - `docs/RELEASE.md` — release checklist (web track MIT, APK track GPL-3.0)

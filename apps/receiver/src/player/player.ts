@@ -82,10 +82,11 @@ class InternalHlsPlayer {
       }
 
       if (!this.hlsInstance) {
+        // 3s buffer keeps TV memory small. (enableNativeHls /
+        // maxFragmentBufferLength were removed — they are not real hls.js
+        // options and were silently ignored.)
         this.hlsInstance = new HLS({
-          enableNativeHls: true,
           maxBufferLength: 3,
-          maxFragmentBufferLength: 1,
         });
         this.hlsInstance.loadSource(this._currentUrl);
         this.hlsInstance.attachMedia(this.el);

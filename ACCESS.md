@@ -32,6 +32,11 @@ Account: CF-ACCOUNT-EMAIL-REDACTED · Account-ID: CF-ACCOUNT-ID-REDACTED
 
 **Nur Site neu bauen (ohne Deploy):** `pnpm build:site`
 
+**CI (GitHub Actions):** `.github/workflows/ci.yml` prüft bei jedem Push/PR
+`pnpm install --frozen-lockfile` → `pnpm verify` → `pnpm build:site`.
+Deploys bleiben bewusst manuell (`pnpm deploy:all`) — kein Cloudflare-Secret
+im Repo. Projektzustand: [STATUS.md](STATUS.md).
+
 ## Signaling-Endpunkte
 
 | Methode | Pfad | Zweck |

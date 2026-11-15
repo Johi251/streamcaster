@@ -28,6 +28,34 @@
     </div>
     <input id="hidden-file" type="file" accept="video/*,audio/*" hidden />
     <input id="hidden-sub" type="file" accept=".vtt" hidden />
+    <!-- Compatibility guard (plain ES5, runs before the module bundle):
+         browsers without ES modules/Promise/fetch/WebSocket used to show a
+         white screen. This renders a readable message instead. -->
+    <script>
+      (function () {
+        var missing = [];
+        if (typeof Promise === "undefined") missing.push("Promise");
+        if (typeof fetch === "undefined") missing.push("fetch");
+        if (typeof WebSocket === "undefined") missing.push("WebSocket");
+        if (missing.length === 0) return;
+        var app = document.getElementById("app");
+        if (app) app.style.display = "none";
+        var wrap = document.createElement("div");
+        wrap.setAttribute("style", "font-family:sans-serif;background:#0b0d12;color:#e8eaf0;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px");
+        var card = document.createElement("div");
+        card.setAttribute("style", "max-width:560px;line-height:1.6");
+        var h = document.createElement("h1");
+        h.setAttribute("style", "font-size:22px;margin:0 0 12px");
+        h.textContent = "StreamCaster";
+        var p1 = document.createElement("p");
+        p1.setAttribute("style", "margin:0 0 16px");
+        p1.textContent = "This browser is too old (missing: " + missing.join(", ") + "). Please use an up-to-date Chrome, Edge, Firefox or Safari.";
+        card.appendChild(h);
+        card.appendChild(p1);
+        wrap.appendChild(card);
+        document.body.appendChild(wrap);
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
