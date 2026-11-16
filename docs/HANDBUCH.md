@@ -194,3 +194,192 @@ werden aus der Markdown-Quelle erzeugt mit `node docs/guides/build-handbuch.mjs`
 und liegen seit 15.11.2026 versioniert im Repository. Die vier Ein-Seiten-PDFs
 (`StreamCaster-Quickstart-*.pdf`, `StreamCaster-Ultrakurzanleitung-*.pdf`) sind
 dagegen **eigenständige Kurzanleitungen** (`node docs/guides/build.mjs`).
+
+---
+
+## 10. Detaillierte Komponenten-Referenz (Funktionen & Aufgaben)
+
+### 10.1 Sender: StreamCaster (PWA)
+
+**Rolle:** Initiator & Controller — steuert was auf dem Empfänger gespielt wird.
+
+| Aufgabe | Implementierung |
+|---------|----------------|
+| **Room-Management** | Generiert/validiert 6-stellige Codes. Verbindet via WS/SSE zum Signaling Worker. Zeigt QR-Code für One-Click-Pairing (`/#join=CODE`). |
+| **URL-Cast** | Nutzt `extractFromPage(url)` → lädt Seite über `/browse` Proxy → Heuristiken finden `.m3u8`, `<video>`, `<source>`, `og:video` → zeigt Kandidaten im Link-Preview Modal → User bestätigt → sendet `load` Command über Signaling. |
+| **File-Cast** | Drag&Drop / File Input → `URL.createObjectURL(blob)` → sendet `load` mit Blob-URL. Unterstützt: MP4, WebM, MP3, M4A, HLS (via Proxy). |
+| **Screen Mirroring** | `navigator.mediaDevices.getDisplayMedia()` → `SenderPeer` (WebRTC) → Offer/ICE über Signaling → P2P Stream zum Receiver. |
+| **Camera Mirroring** | `getUserMedia({video: {facingMode: "environment"}})` → gleicher WebRTC Pfad. |
+| **Chromecast** | Native `cast.framework` SDK → Receiver Discovery im LAN → Session Request → Media Load. |
+| **AirPlay Download Hub** | Karte in UI → direkter Download `https://streamcaster.pages.dev/a.apk` + Sideloading-Anleitung für Fire TV (Downloader App). |
+| **Sicherheit** | Link-Preview Modal zeigt Domain + volle URL vor jedem Cast. Blockiert `javascript:`/`data:`/`file:` Protokolle. SSRF-Guard für Extraction URLs. |
+| **PWA / Offline** | `manifest.webmanifest` + `sw.js` (Offline Shell: Navigation + Assets cached). Installierbar auf Android/iOS/Desktop. |
+| **State Machine** | `idle` → `connecting` → `connected` → `casting/playing` → `error/reconnecting`. Persistiert Room-Code in `localStorage`. |
+
+**Kern-Dateien:**
+```
+apps/sender/src/main.ts           # Entry, State Machine, Signaling Client, Cast Orchestrierung
+apps/sender/src/transport/
+  remote.ts       → RemoteTransport (Commands über Signaling WS)
+  webrtc.ts       → SenderPeer (WebRTC P2P für Mirror)
+  cast.ts         → Chromecast Integration
+  file.ts         → File-Cast Blob URL Handling
+apps/sender/src/extract/
+  detect.ts       → Media Detection (m3u8, video, source, og:video)
+  heuristics.ts   → Scoring & Ranking der Kandidaten
+  probe.ts        → HEAD/Range Requests für MIME/Size
+  useExtract.ts   → React Hook für Browse-&-Cast Flow
+apps/sender/src/ui/linkPreview.ts # Link-Preview Modal (Security Gate)
+```
+
+---
+
+### 10.2 Receiver: StreamCaster Receiver (PWA)
+
+**Rolle:** Player & Anzeige — empfängt Commands, spielt Media, zeigt Status.
+
+| Aufgabe | Implementierung |
+|---------|----------------|
+| **Room-Code Anzeige** | Generiert eigenen Code bei Start. URL `/?code=XXXXXX` macht Reload-fest. QR-Code für Deep-Link Pairing. |
+| **Media Playback** | `ReceiverPlayer` Factory wählt: `HlsPlayer` (m3u8, ABR), `MpxPlayer` (mp4/webm/mp3 native), `WebRtcPlayer` (Mirror Stream via `srcObject`). |
+| **HLS.js Player** | Adaptive Bitrate nativ. Muted-Autoplay-Fallback für TV-Browser ohne User-Gesture (Silk, Tizen, webOS). |
+| **WebRTC Peer** | `ReceiverPeer` → `setRemoteDescription(offer)` → `createAnswer()` → ICE Candidates → `ontrack` → `video.srcObject = stream`. |
+| **Command Handling** | `load`, `play`, `pause`, `seek`, `volume`, `stop`, `subtitle`, `stream-start/stop` via Signaling. Validiert Commands vor Ausführung. |
+| **State Sync** | Sendet `state` Updates (position, duration, paused, currentUrl, title) an Sender alle 500ms + on change. |
+| **Touch/Remote Controls** | On-Screen Buttons: Play/Pause, Seek ±10s, Volume, Fullscreen, Close. Tastatur: Space=Play/Pause, ←/→=Seek, ↑/↓=Volume. TV-Fernbedienung: OK=Pause, Zurück=Beenden. |
+| **PWA Offline** | Service Worker cached Shell + Assets. Funktioniert nach erstem Laden ohne Netzwerk. |
+| **Reconnect Logic** | Exponential Backoff (1s, 2s, 4s... max 30s) bei WS/SSE Verlust. Zeigt "Reconnecting..." Toast. |
+
+**Kern-Dateien:**
+```
+apps/receiver/src/main.ts           # Entry, State Machine, Signaling Client
+apps/receiver/src/player/player.ts  # ReceiverPlayer Factory + 3 Implementierungen
+apps/receiver/src/webrtc/receive.ts # ReceiverPeer (WebRTC Answer + ICE)
+apps/receiver/src/signaling.ts      # ReceiverClient (WS/SSE, Reconnect, Message Handling)
+```
+
+---
+
+### 10.3 Signaling Worker: streamcaster-signaling.streamcaster.workers.dev
+
+**Rolle:** Koordinator & Message Router — hält Räume, vermittelt Verbindungen.
+
+| Aufgabe | Implementierung |
+|---------|----------------|
+| **Room Durable Object** | Pro Room-Code eine DO-Instanz (`Room`). State im Memory (Peers, Messages, State). TTL: 2h Inaktivität → Auto-Delete. |
+| **WebSocket Endpoint** | `GET /ws?code=CODE&role=sender\|receiver` → Upgrade → bidirektional. Heartbeat Ping/Pong 30s. |
+| **SSE Fallback** | `GET /sse?code=CODE&role=ROLE` für Browser ohne WS (alte TV-Browser). Server-Sent Events. |
+| **POST Fallback** | `POST /send?code=CODE` für Commands ohne WS/SSE. Body: JSON CommandOp. |
+| **State Query** | `GET /state?code=CODE` → aktueller Playback-State (für Debug/External). |
+| **Message Routing** | Alle Messages < 128 Bytes. Typen: `join`, `webrtc`, `cmd`, `state`, `ping`, `leave`. Broadcast an alle Peers im Room außer Sender. |
+| **Peer Presence** | `joined` Response enthält `peerPresent: boolean` — einzige verlässliche Info ob Gegenrolle da ist. `peers` zählt sich selbst mit. |
+| **Capabilities Exchange** | Sender sendet `caps` bei Join (Resolution, Codec, Bitrate, Mirror-Support). Receiver nutzt für Quality-Negotiation. |
+| **Security** | Max Message Size 64 KB. Room-Code Validierung (Alphabet `23456789ABCDEFGHJKMNPQRSTUVWXYZ`). Role-Normalisierung (invalid → receiver). POST-only `/send` mit Body-Cap (64 KB). |
+
+**Protokoll (Kurz):**
+```json
+// Client → Server
+{"t":"join","role":"sender","code":"ABC123","peerId":"...","caps":{...}}
+{"t":"webrtc","kind":"offer|ice","payload":{...}}
+{"t":"cmd","op":{"name":"load","url":"...","title":"...","mime":"..."}}
+{"t":"state","state":{"paused":false,"position":12.5,"duration":120}}
+{"t":"ping","ts":1234567890}
+{"t":"leave"}
+
+// Server → Client
+{"t":"joined","code":"ABC123","role":"sender","peerPresent":true,"peers":2,"state":{},"peerCaps":{...}}
+{"t":"peer-joined","role":"receiver","caps":{...}}
+{"t":"peer-left","role":"receiver"}
+{"t":"webrtc","kind":"answer|ice","payload":{...}}
+{"t":"cmd","op":{...}}
+{"t":"state","state":{...}}
+{"t":"pong","ts":1234567890}
+{"t":"error","message":"...","code":"..."}
+```
+
+**Kern-Dateien:**
+```
+apps/signaling/src/index.ts          # Worker Entry, Routing (WS/SSE/POST/GET)
+apps/signaling/src/room.ts           # Room Durable Object (State, Peers, Broadcast, TTL)
+apps/signaling/src/protocol.ts       # Message Validation (parseClientMessage, parseServerMessage)
+```
+
+---
+
+### 10.4 Proxy Worker: streamcaster-proxy.streamcaster.workers.dev
+
+**Rolle:** CORS-Relay, HLS-Rewrite, Intercepting Proxy — macht fremde Media im Browser spielbar.
+
+| Endpoint | Aufgabe | Details |
+|----------|---------|---------|
+| `GET /health` | Health Check | `{ok: true}` |
+| `GET /fetch?url=URL` | CORS Relay HTML/JSON | 2 MB Cap. Stript `set-cookie`, `www-authenticate`, `authorization`, `content-length`. Erlaubt nur `text/*`, `application/json`. |
+| `GET /hls?url=URL` | HLS Manifest Rewrite | Lädt `.m3u8`, schreibt **alle** URIs um (Segments, Keys, Variants) → `/seg?url=` oder `/hls?url=`. Behält Query-Parameter. |
+| `GET /seg?url=URL` | Segment Pass-Through | Streamed Response mit Range-Forwarding (206 Support). Content-Type Passthrough. |
+| `GET /browse?url=URL` | Intercepting Proxy | Lädt HTML, injiziert `BROWSE_INJECT` Script (Media Capture + PostMessage), rewrited **alle** Links/Forms/Iframes zu weiteren `/browse?url=` Hops. Stript `X-Frame-Options`, CSP `frame-ancestors`. |
+| `GET /p?url=URL` | Permissiver Passthrough | Für gecapturte Media-URLs. Range + CORS. Weniger strikt als `/fetch`. |
+
+**SSRF Guards (Sicherheit):**
+| Guard | Regel |
+|-------|-------|
+| Protocol | Nur `https:` erlaubt |
+| Host | Block: `localhost`, `127.0.0.1`, `::1`, `*.local`, `*.localhost`, `*.localdomain` |
+| Private IPs | Block: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `fc00::/7` |
+| Ports | Block: 22, 23, 25, 53, 110, 139, 143, 445, 3306, 5432, 6379, 8080, 8443, 9000+ |
+| Redirects | Max 3 Hops, jedes Ziel wird erneut geprüft |
+| Content-Type | Pro Endpoint strikt definiert |
+
+**Byte-Limiter:** `streamBodyWithLimit(response, maxBytes = 50 MB)` für Segments.
+
+**Kern-Dateien:**
+```
+apps/proxy/src/index.ts          # Worker Entry, Routing
+apps/proxy/src/guard.ts          # SSRF Guards (isSafeHost, validateUrl, parseUrl)
+apps/proxy/src/limit.ts          # Streaming Byte Cap Helpers
+apps/proxy/src/rewrite.ts        # HLS Manifest Rewrite + Browse HTML Inject
+  rewriteManifest()              # Alle URIs in m3u8 umschreiben
+  BROWSE_INJECT                  # Media Capture Script für /browse
+```
+
+---
+
+### 10.5 APK: StreamCaster Receiver (Native Android / Fire TV)
+
+**Rolle:** Native Empfänger für Fire TV — Video Cast + AirPlay Spiegelung.
+
+**Download:** https://streamcaster.pages.dev/a.apk (direkte Datei, **kein Redirect**)  
+**Kurzform:** https://streamcaster.pages.dev/apk (Rewrite → `/a.apk`)
+
+| Aufgabe | Implementierung |
+|---------|----------------|
+| **Video Cast** | Empfängt `load` Command via Signaling WS → `StreamCasterPlayer` (ExoPlayer/Media3) spielt MP4, HLS, DASH. HW-Decoding (`HW.video.avc`, `HW.video.hevc`). Eigene Controller-UI (OK=Pause, ±10s, Zurück=Beenden). |
+| **AirPlay Spiegelung** | UxPlay Kern (RAOP + AirPlay 2). mDNS: `_airplay._tcp` + `_raop._tcp` als **"StreamCaster TV"**. iPhone/iPad finden Gerät nativ in AirPlay-Menü. Port 7000. |
+| **Signaling Client** | WebSocket zu `streamcaster-signaling.streamcaster.workers.dev`. Generiert eigenen Room-Code. Reconnect mit Backoff. Capabilities: `mirror=false`, `screenCast=false` (nur Video). |
+| **Fire OS 5+ Support** | `minSdk 22` (Android 5.1). ABIs: `arm64-v8a` + `armeabi-v7a`. v1+v2+v3 Signatur (v1 zwingend für Android ≤6). Media3 1.8.0 (1.9+ fordert minSdk 23). Keine Compose Widgets (eigene Controls auf `Player`). |
+| **ADB Debugging** | `adb connect IP:5555` → Logs, Install, Launch. Bei `offline`: ADB am Stick AUS/EIN togglen. |
+
+**Build & Release:**
+| Schritt | Befehl / Ort |
+|---------|-------------|
+| CI Build | `.github/workflows/android.yml` (Ubuntu, unsigniert) |
+| Lokale Signatur | `scripts/sign-apk.mjs <unsigned.apk> <signed.apk>` mit Keystore `airplay-receiver/.secrets/streamcaster-release.jks` |
+| Keystore Config | `airplay-receiver/.secrets/signing.properties` (gitignored) |
+| Release | `gh release create vX.Y.Z <apk> --repo Johi251/streamcaster-airplay-receiver` |
+| Pages Sync | Signierte APK → `airplay-receiver/dist/streamcaster-receiver.apk` → `pnpm deploy:all` kopiert nach `site/dist/a.apk` |
+
+**Verifizierte Hardware:**
+| Gerät | Fire OS | Arch | Status |
+|-------|---------|------|--------|
+| Fire TV Stick 4K (AFTMM) | 6.7.1.1 | armeabi-v7a | ✅ Video Cast + AirPlay |
+| Fire TV Stick 1. Gen / Lite | 5.x | armeabi-v7a | ✅ (v1.0.4 minSdk 22) |
+| Fire TV Cube | 6/7/8 | arm64 | ✅ |
+
+**Kern-Dateien (airplay-receiver Repo):**
+```
+airplay-receiver/app/src/main/java/com/streamcaster/receiver/
+  HubActivity.kt          # Room Code, Status, QR
+  PlayerActivity.kt       # ExoPlayer + Custom Controller
+  signaling/SignalingClient.kt  # WS Client + Reconnect
+  airplay/AirPlayService.kt     # UxPlay Wrapper (Port 7000)
+  player/StreamCasterPlayer.kt  # ExoPlayer Wrapper
+```

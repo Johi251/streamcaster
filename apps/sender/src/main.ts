@@ -633,8 +633,20 @@ function renderConnected(): void {
   extractBtn.addEventListener("click", () => void runExtract(urlInput.value.trim(), candidateList, now));
   fileBtn.addEventListener("click", () => void pickAndSendFile(now));
   subBtn.addEventListener("click", () => void pickSubtitle());
-  mirrorBtn.addEventListener("click", () => void startStreaming("screen", now));
-  cameraBtn.addEventListener("click", () => void startStreaming("camera", now));
+  mirrorBtn.addEventListener("click", () => {
+    if (!canMirror()) {
+      // Show the tooltip's text as a toast since the user just clicked.
+      setStatus(
+        "Screen capture is not available in this browser. Try desktop Chrome or use the AirPlay APK for Fire TV.",
+        true
+      );
+      return;
+    }
+    void startStreaming("screen", now);
+  });
+  cameraBtn.addEventListener("click", () => {
+    void startStreaming("camera", now);
+  });
 
   const castBtn = castAvail
     ? el("button", { id: "cast-chromecast-btn", class: "primary" }, "📺 Cast to Chromecast")
@@ -828,14 +840,30 @@ async function startStreaming(kind: "screen" | "camera", now: HTMLElement): Prom
     peer?.stop();
     peer = new SenderPeer(
       (k, p) => client?.send({ t: "webrtc", kind: k as "offer" | "ice", payload: p }),
-      () => setStatus("WebRTC connection failed — make sure the receiver supports WebRTC or both devices are on the same Wi-Fi.", true)
+      () => setStatus("WebRTC connection failed — both devices must be on the same Wi-Fi and support WebRTC. The receiver may have disconnected.", true)
     );
-    peer.startStream(stream).catch((e) => setStatus("Stream failed: " + String(e), true));
+    peer.startStream(stream).catch((e) => {
+      // Network or WebSocket problems — the user should get a helpful message.
+      if (e.message.includes("failed") || e.message.includes("error")) {
+        setStatus("Stream connection failed — check your Wi-Fi connection and try again.", true);
+      } else {
+        setStatus("Stream failed: " + String(e), true);
+      }
+    });
     transport?.streamStart(kind);
     now.textContent = kind === "screen" ? "Screen mirroring (live)" : "Camera (live)";
-    setStatus("Negotiating stream… (best on same Wi-Fi)");
+    setStatus("Negotiating stream… (works best on the same Wi-Fi)");
   } catch (e) {
-    setStatus("Capture failed: " + String(e), true);
+    // Permission denied, unsupported browser, or other capture failure.
+    // Use a user-friendly message.
+    const msg = String(e).toLowerCase();
+    if (msg.includes("permission")) {
+      setStatus("Permission denied — the browser needs camera or screen access. Try allowing it in your browser settings.", true);
+    } else if (msg.includes("not supported")) {
+      setStatus("Screen capture is not supported in this browser. Try a desktop Chrome browser or use the AirPlay APK for Fire TV.", true);
+    } else {
+      setStatus("Capture failed: " + String(e), true);
+    }
   }
 }
 

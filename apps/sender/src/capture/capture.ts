@@ -21,8 +21,27 @@ export async function captureScreen(): Promise<MediaStream> {
 }
 
 export async function captureCamera(): Promise<MediaStream> {
-  return navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment", width: { ideal: 1280 } },
-    audio: true,
-  });
+  // Prefer the back camera (environment); fall back to front (user) if unavailable.
+  // On unsupported browsers, userMedia throws PermissionDeniedError — callers should
+  // show a friendly message instead of the raw error message.
+  try {
+    return navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 1280 } },
+      audio: true,
+    });
+  } catch (err) {
+    if (err instanceof PermissionDeniedError) {
+      throw new Error(
+        "Camera permission denied — the page needs access to your camera to mirror it. Check your settings."
+      );
+    }
+    // Other devices may only have the front camera.
+    if ((err as Error).code === "notsupported" || (err as Error).code === "invalid-arguments") {
+      return navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 } },
+        audio: true,
+      });
+    }
+    throw err;
+  }
 }
