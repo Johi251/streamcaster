@@ -4,7 +4,7 @@
 > document links here and must not duplicate status text.
 > Agents: read this first, then [AGENTS.md](AGENTS.md) for working rules.
 
-- **last-updated:** 2026-11-15
+- **last-updated:** 2026-11-16
 - **Web-Stack version:** v1.1.4-equivalent (tags up to `v1.0.3`; see ACCESS.md
   versioning for the detail history)
 - **APK (separate repo, GPL-3.0):** v1.0.4 — live on
@@ -12,9 +12,8 @@
   against the deployed artefact on 2026-11-09
 - **Deployed:** sender/receiver on Cloudflare Pages, signaling + proxy Workers
   (free tier), all live URLs in [ACCESS.md](ACCESS.md). Production redeployed
-  2026-11-15 with the quality-hardening round (CI gate, sender peer-leak fix,
-  receiver time/HLS-detection fixes, old-device ES5 fallback overlay, es2018
-  targets); E2E 19/19 green against live afterwards.
+  2026-11-16 with handbuch v1.1.0 (komponenten-referenz); E2E 19/19 green
+  against live (`streamcaster.pages.dev`) confirmed 2026-11-16.
 
 ## What works (verified)
 
