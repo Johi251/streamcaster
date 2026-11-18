@@ -100,6 +100,11 @@ signed APK was republished as the `apk-v1.0.4` release asset of this repo.
 (UxPlay/JNI). The web bundles do not link against the APK. `NOTICE.md` and
 `docs/RELEASE.md` state the split explicitly.
 
+**Submodule config:** after the subtree merge the canonical 
+lives at repo root with -prefixed paths. Git only reads the
+root file; a nested copy made  fail with “No url found for
+submodule path”.
+
 **Why one repo:** one source of truth, one CI, one issue tracker. The build
 script already expected `airplay-receiver/` relative to the root. Subtree
 preserves all upstream commits, so no provenance is lost.
