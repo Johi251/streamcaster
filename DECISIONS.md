@@ -87,3 +87,24 @@ the D1 v1.1 bridge scope, so discovery ships with it, not before.
 auto-connected — it is prefilled only, and a well-formed code is consumed from
 the URL so a reload cannot silently re-join a stale room
 (`e2e/specs/pairing.spec.ts`).
+
+## D8 — AirPlay receiver stays a separate repository (decided 2026-11-18)
+
+**Decision:** `Johi251/streamcaster-airplay-receiver` remains a standalone
+GPL-3.0 repository. It is NOT merged into `Johi251/streamcaster` (MIT) and
+must NOT be deleted.
+
+**Why:**
+- Active build input: `scripts/build-site.mjs` copies
+  `airplay-receiver/dist/streamcaster-receiver.apk` to `site/dist/a.apk`.
+  Without it the download falls back to a GitHub 302 redirect, which older
+  Fire TV Silk browsers mis-save as HTML (root cause of the v1.0.4 install bug).
+- Functionality is NOT integrated: the streamcaster repo contains no Android,
+  Kotlin or UxPlay source and no APK build workflow; `android.yml` lives only
+  in the receiver repo.
+- License boundary: the UxPlay/JNI core is GPL-3.0, the web stack is MIT.
+  Merging would force a license change for the whole web project.
+- Release cadence and signing (machine-local keystore) are independent.
+
+**Revisit when:** APK build + signing no longer depend on a local checkout,
+or both parts share one license.

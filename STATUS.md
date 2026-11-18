@@ -4,7 +4,7 @@
 > document links here and must not duplicate status text.
 > Agents: read this first, then [AGENTS.md](AGENTS.md) for working rules.
 
-- **last-updated:** 2026-11-16
+- **last-updated:** 2026-11-18
 - **Web-Stack version:** v1.1.4-equivalent (tags up to `v1.0.3`; see ACCESS.md
   versioning for the detail history)
 - **APK (separate repo, GPL-3.0):** v1.0.4 — live on
@@ -13,7 +13,10 @@
 - **Deployed:** sender/receiver on Cloudflare Pages, signaling + proxy Workers
   (free tier), all live URLs in [ACCESS.md](ACCESS.md). Production redeployed
   2026-11-16 with handbuch v1.1.0 (komponenten-referenz); E2E 19/19 green
-  against live (`streamcaster.pages.dev`) confirmed 2026-11-16.
+  against live (`streamcaster.pages.dev`) confirmed 2026-11-16. Docs refreshed
+  2026-11-18 (handbook ch. 8 deployment / ch. 9 platforms, quick-start PDFs);
+  no redeploy needed — docs are not part of the Pages bundle. AirPlay receiver
+  repo kept standalone by D8 (active APK build input, GPL-3.0 boundary).
 
 ## What works (verified)
 

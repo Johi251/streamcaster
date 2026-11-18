@@ -1,15 +1,21 @@
 # Copy-&-Paste-Prompt: Multi-Plattform-Gerüst für andere Tools
 
 **Für Johann:** Diesen Block 1:1 in eine neue KI-Session kopieren, die `<NAME>`
-Vorkommen an das neue Tool anpassen (nur 3 Stellen). Der Prompt baut dasselbe
-Gerüst, das StreamCaster nutzt — für Windows (exe), macOS, Linux, iOS, iPadOS,
-Android und Web.
+Vorkommen an das neue Tool anpassen (nur 3 Stellen). Der Prompt baut ein
+Multi-Plattform-Gerüst für Windows (exe), macOS, Linux, iOS, iPadOS, Android
+und Web.
+
+**Einordnung:** StreamCaster selbst nutzt davon den Web-Core (PWA) plus die
+beiden Cloudflare Worker. Die `shells/`-Schichten (Tauri/Capacitor) sind eine
+Erweiterung für **neue Projekte mit Store-Pflicht** und in StreamCaster bewusst
+nicht gebaut — die PWA deckt dort alle Plattformen ab.
 
 ---
 
 You are a senior full-stack engineer. Build **<NAME>**, a tool whose core logic is a
 web app, packaged for every platform from ONE codebase. Follow this scaffold exactly;
-it is proven (used by the StreamCaster project) and CI-verified.
+the web-core + worker + quality-gate parts are proven by StreamCaster; the native
+shells are an optional extension for projects that need store binaries.
 
 ## 0. Non-negotiable ground rules
 - Free-tier infra only (Cloudflare Workers + Pages / Durable Objects). No accounts, no tracking, no ads.
