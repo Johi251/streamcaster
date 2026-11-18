@@ -15,9 +15,9 @@ den Raum-Code und die Signaling-Anbindung.
 ## Download
 
 **APK (Fire TV Stick, arm64):**
-`https://github.com/Johi251/streamcaster-airplay-receiver/releases/latest/download/streamcaster-receiver.apk`
+`https://github.com/Johi251/streamcaster/releases/download/apk-v1.0.4/streamcaster-receiver.apk`
 
-> Stand dieses Builds: siehe [Releases](https://github.com/Johi251/streamcaster-airplay-receiver/releases).
+> Stand dieses Builds: siehe [Release apk-v1.0.4](https://github.com/Johi251/streamcaster/releases/tag/apk-v1.0.4).
 > Das APK ist mit einem lokalen Release-Key signiert (nicht im Repo).
 
 ## Installation auf dem Fire TV Stick (Sideloading)
@@ -25,7 +25,7 @@ den Raum-Code und die Signaling-Anbindung.
 ```
 ① Fire TV → „Suchen“ → „Downloader“ installieren (Amazon Appstore, gratis)
 ② Downloader öffnen → APK-URL eingeben:
-   https://github.com/Johi251/streamcaster-airplay-receiver/releases/latest/download/streamcaster-receiver.apk
+   https://github.com/Johi251/streamcaster/releases/download/apk-v1.0.4/streamcaster-receiver.apk
 ③ „Apps aus unbekannten Quellen“ für Downloader erlauben → APK installieren
 ④ „StreamCaster Receiver“ starten → Raum-Code erscheint
 ```
@@ -76,8 +76,8 @@ Voraussetzungen:
   Quellpfad ab; auf Windows z. B. unter `%TEMP%\scbuild` bauen)
 
 ```bash
-git clone --recursive https://github.com/Johi251/streamcaster-airplay-receiver.git
-cd streamcaster-airplay-receiver
+git clone --recursive https://github.com/Johi251/streamcaster.git
+cd streamcaster/airplay-receiver
 
 # SDK-Pfad eintragen
 echo "sdk.dir=/pfad/zum/android-sdk" > local.properties

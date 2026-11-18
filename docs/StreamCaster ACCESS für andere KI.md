@@ -96,11 +96,11 @@ verbundene Ansicht; sonst den Wartezustand mit sichtbarem Code. Clients sollten
 ## Integrationspunkte (für externe Projekte)
 
 ### AirPlay-Receiver-APK (veröffentlicht, v1.0.4)
-- Eigenständiges Repo: https://github.com/Johi251/streamcaster-airplay-receiver (GPL-3.0)
+- Quelle: Monorepo `Johi251/streamcaster`, Pfad `airplay-receiver/` (GPL-3.0, git subtree). Altes Repo 2026-11-19 entfernt.
 - Verbindet sich als Receiver via WS zum Signaling-Worker, generiert eigenen Room-Code
 - Empfängt CommandOps, spielt Media via ExoPlayer/Media3; AirPlay-2-Spiegelung via UxPlay-Kern
 - AirPlay-Gerätename im mDNS: **„StreamCaster TV"** (App-Name: „StreamCaster Receiver")
-- Download (stabil, `latest`): `https://github.com/Johi251/streamcaster-airplay-receiver/releases/latest/download/streamcaster-receiver.apk`
+- Download (stabil, `latest`): `https://github.com/Johi251/streamcaster/releases/download/apk-v1.0.4/streamcaster-receiver.apk`
 - **Kurze Direkt-URL der Webapp: `https://streamcaster.pages.dev/a.apk`** — echte Datei auf
   Cloudflare Pages, MIME `application/vnd.android.package-archive`, **KEINE Umleitung**.
   Kurzform `/apk` (Rewrite auf `/a.apk`) ist für die Fire-TV-Tastatur gedacht.
@@ -220,9 +220,9 @@ anderen Rechner müssen Keystore + Passwort + Wrangler-Login separat übertragen
   von Zugangs-Metadaten befreit (filter-repo + Force-Push; unabhängiger Klon-Scan: 0 Treffer).
   Echte Werte stehen lokal in `.workbuddy-ai/memory/LOCAL-ACCESS.local.md` (gitignored).
   Regel ab sofort: keine neuen Zugangsdaten/Metadaten in getrackte Dateien.
-- **APK-Repo:** `https://github.com/Johi251/streamcaster-airplay-receiver` — **PUBLIK**.
-  Eigenständiges Android-Projekt; im Haupt-Repo via `.gitignore` ausgeklammert
-  (`airplay-receiver/`). Build + Release v1.0.4 liegen dort.
+- **APK-Track:** `airplay-receiver/` im Monorepo `Johi251/streamcaster` — **PUBLIK**.
+  git subtree mit voller Historie; Build via `.github/workflows/android.yml`.
+  Altes Repo 2026-11-19 entfernt; Release-Asset `apk-v1.0.4`.
 - **Auth:** `gh` CLI ist auf diesem Rechner authentifiziert (OAuth). Neue Repos:
   `gh repo create <name> --private --source . --remote origin --push`.
 
@@ -240,7 +240,7 @@ anderen Rechner müssen Keystore + Passwort + Wrangler-Login separat übertragen
   (gitignored, maschinenlokal).
 - Signier-Skript: `scripts/sign-apk.mjs <unsigniert.apk> <ausgabe.apk>` — erzwingt v1+v2+v3
   (v1 zwingend für Android ≤6) und minSdk 22.
-- Danach Release: `gh release create vX.Y.Z <apk> --repo Johi251/streamcaster-airplay-receiver`
+- Danach Release: `gh release create vX.Y.Z <apk>` im Monorepo
   und die signierte APK nach `airplay-receiver/dist/streamcaster-receiver.apk` kopieren, damit
   `scripts/build-site.mjs` sie auf Pages unter `/a.apk` ausliefert (danach `pnpm deploy:all`).
 
@@ -267,7 +267,7 @@ anderen Rechner müssen Keystore + Passwort + Wrangler-Login separat übertragen
   Vertrauenszeile zweizeilig, Kompatibilitätshinweis
 - v1.1.3: AirPlay-Karte auf APK v1.0.2 (Startabsturz behoben)
 - v1.1.4: AirPlay-Karte auf APK v1.0.3 (`singleTask`, keine Doppel-Oberfläche mehr)
-- Extern: AirPlay-Receiver-APK v1.0.4 (GitHub: Johi251/streamcaster-airplay-receiver, GPL-3.0)
+- Extern: AirPlay-Receiver-APK v1.0.4 (Monorepo-Pfad `airplay-receiver/`, GPL-3.0; Release `apk-v1.0.4`)
   — v1.0.0 war auf Fire OS 6 nicht installierbar (minSdk 28, nur arm64),
   v1.0.1 stürzte beim Start ab (`RoundedCornerShape(999)` = 999 Prozent),
   v1.0.2/1.0.3 beheben das bzw. die doppelte Activity-Instanz,

@@ -101,11 +101,11 @@ verbundene Ansicht; sonst den Wartezustand mit sichtbarem Code. Clients sollten
 ## Integrationspunkte (für externe Projekte)
 
 ### AirPlay-Receiver-APK (veröffentlicht, v1.0.4)
-- Quelle: Monorepo `Johi251/streamcaster`, Pfad `airplay-receiver/` (GPL-3.0, git subtree mit voller Historie). Altes Repo `Johi251/streamcaster-airplay-receiver` bleibt als Release-Mirror.
+- Quelle: Monorepo `Johi251/streamcaster`, Pfad `airplay-receiver/` (GPL-3.0, git subtree mit voller Historie). Altes Receiver-Repo wurde 2026-11-19 entfernt; Release-Asset liegt am Tag `apk-v1.0.4` im Monorepo.
 - Verbindet sich als Receiver via WS zum Signaling-Worker, generiert eigenen Room-Code
 - Empfängt CommandOps, spielt Media via ExoPlayer/Media3; AirPlay-2-Spiegelung via UxPlay-Kern
 - AirPlay-Gerätename im mDNS: **„StreamCaster TV"** (App-Name: „StreamCaster Receiver")
-- Download (stabil, `latest`): `https://github.com/Johi251/streamcaster-airplay-receiver/releases/latest/download/streamcaster-receiver.apk`
+- Download (stabil, `latest`): `https://github.com/Johi251/streamcaster/releases/download/apk-v1.0.4/streamcaster-receiver.apk`
 - **Kurze Direkt-URL der Webapp: `https://streamcaster.pages.dev/a.apk`** — echte Datei auf
   Cloudflare Pages, MIME `application/vnd.android.package-archive`, **KEINE Umleitung**.
   Kurzform `/apk` (Rewrite auf `/a.apk`) ist für die Fire-TV-Tastatur gedacht.
@@ -272,7 +272,7 @@ anderen Rechner müssen Keystore + Passwort + Wrangler-Login separat übertragen
   Vertrauenszeile zweizeilig, Kompatibilitätshinweis
 - v1.1.3: AirPlay-Karte auf APK v1.0.2 (Startabsturz behoben)
 - v1.1.4: AirPlay-Karte auf APK v1.0.3 (`singleTask`, keine Doppel-Oberfläche mehr)
-- Extern: AirPlay-Receiver-APK v1.0.4 (Monorepo-Pfad `airplay-receiver/`, GPL-3.0; GitHub-Mirror `Johi251/streamcaster-airplay-receiver`)
+- Extern: AirPlay-Receiver-APK v1.0.4 (Monorepo-Pfad `airplay-receiver/`, GPL-3.0; Release-Asset `apk-v1.0.4`)
   — v1.0.0 war auf Fire OS 6 nicht installierbar (minSdk 28, nur arm64),
   v1.0.1 stürzte beim Start ab (`RoundedCornerShape(999)` = 999 Prozent),
   v1.0.2/1.0.3 beheben das bzw. die doppelte Activity-Instanz,

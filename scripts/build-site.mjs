@@ -48,10 +48,10 @@ cpSync(join(root, "apps", "sender", "dist"), siteDist, { recursive: true });
 //    makes older Silk browsers save an HTML page instead of the binary — which
 //    then fails the install with "Problem beim Parsen des Pakets".
 //    "/apk" is an internal rewrite (status 200), so the client sees one hop.
-// Legacy release mirror: sources now live in the airplay-receiver/ subtree of
-// this repo; the old repository is kept only as a working fallback asset URL.
+// Fixed release asset in this monorepo (tag apk-v1.0.4). A pinned URL is used
+// instead of "latest" so a future web-release tag cannot shadow the APK asset.
 const APK_FALLBACK_URL =
-  "https://github.com/Johi251/streamcaster-airplay-receiver/releases/latest/download/streamcaster-receiver.apk";
+  "https://github.com/Johi251/streamcaster/releases/download/apk-v1.0.4/streamcaster-receiver.apk";
 const apkSource = process.env.APK_SOURCE || join(root, "airplay-receiver", "dist", "streamcaster-receiver.apk");
 const apkLocal = join(siteDist, "a.apk");
 const hasLocalApk = existsSync(apkSource);

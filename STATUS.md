@@ -4,7 +4,7 @@
 > document links here and must not duplicate status text.
 > Agents: read this first, then [AGENTS.md](AGENTS.md) for working rules.
 
-- **last-updated:** 2026-11-18
+- **last-updated:** 2026-11-19
 - **Web-Stack version:** v1.1.4-equivalent (tags up to `v1.0.3`; see ACCESS.md
   versioning for the detail history)
 - **APK (GPL-3.0 subtree `airplay-receiver/`):** v1.0.4 — live on
@@ -17,7 +17,8 @@
   2026-11-18 (handbook ch. 8 deployment / ch. 9 platforms, quick-start PDFs);
   no redeploy needed — docs are not part of the Pages bundle. AirPlay receiver
   repo integrated as GPL-3.0 subtree by D8 (full history, licence boundary
-  preserved; upstream repo = release mirror). Monorepo migration 2026-11-18:
+  preserved; upstream repo removed 2026-11-19, APK asset at tag `apk-v1.0.4`).
+  Monorepo migration 2026-11-18:
   subtree added, root Android workflow, notices updated — no redeploy needed.
 
 ## What works (verified)

@@ -161,7 +161,7 @@ jeweils aktueller Prüfstand in [STATUS.md](../STATUS.md)).
 ist als `git subtree` mit voller Historie eingebunden. Die Lizenzgrenze ist
 bewusst: der Web-Stack bleibt GPL-frei, damit MIT gültig bleibt (Details:
 `CONTRIBUTING.md`, `docs/RELEASE.md`, ADR D8). Das ehemalige Receiver-Repo
-`Johi251/streamcaster-airplay-receiver` existiert nur noch als Release-Mirror.
+`Johi251/streamcaster-airplay-receiver` wurde 2026-11-19 entfernt; das signierte APK liegt als Release-Asset `apk-v1.0.4` im Monorepo.
 Cloudflare-Account und GitHub-CLI sind auf dem Entwickler-Rechner authentifiziert;
 Zugänge stehen in `ACCESS.md`, echte Konto-Metadaten nur lokal in der
 gitignorierten `.workbuddy-ai/memory/LOCAL-ACCESS.local.md`.
@@ -263,7 +263,7 @@ monatliche Kosten 0 € im Free-Tier.
 **Monorepo (seit 18.11.2026):** Web-Track (MIT) und APK-Track (GPL-3.0) liegen
 in einem Repository. `airplay-receiver/` ist ein `git subtree` mit erhaltener
 Historie und eigener `LICENSE`; die Web-Bundles linken nicht dagegen. Das alte
-Repository `Johi251/streamcaster-airplay-receiver` bleibt als Release-Mirror.
+Repository `Johi251/streamcaster-airplay-receiver` wurde 2026-11-19 entfernt; das Release-Asset liegt am Tag `apk-v1.0.4` im Monorepo.
 
 ---
 

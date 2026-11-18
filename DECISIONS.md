@@ -92,8 +92,8 @@ the URL so a reload cannot silently re-join a stale room
 
 **Decision:** Both tracks live in `Johi251/streamcaster`. `airplay-receiver/`
 is a `git subtree` with full upstream history. The former repository
-`Johi251/streamcaster-airplay-receiver` is retained as a release mirror only;
-deleting it requires separate approval.
+`Johi251/streamcaster-airplay-receiver` was removed on 2026-11-19 after its
+signed APK was republished as the `apk-v1.0.4` release asset of this repo.
 
 **Licence boundary:** root `LICENSE` = MIT for `apps/`, `packages/`, `site/`,
 `scripts/`, `e2e/`; `airplay-receiver/LICENSE` = GPL-3.0 for the native APK
