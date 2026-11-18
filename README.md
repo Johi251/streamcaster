@@ -119,8 +119,12 @@ Details in `docs/TEAM-QUALITY-GUIDE.md`.
 
 ## License
 
-The web stack in this repository is released under the **MIT License** — see
-[LICENSE](LICENSE); third-party notices in [NOTICE.md](NOTICE.md). The
-**Android AirPlay receiver APK is a separate repository** licensed **GPL-3.0**
-(because it bundles UxPlay); it carries its own `LICENSE` and `NOTICE.md`.
+Two tracks, one repository:
+
+- Web stack (`apps/`, `packages/`, `site/`, `scripts/`, `e2e/`) — **MIT**;
+  see [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).
+- Native AirPlay receiver APK (`airplay-receiver/`, git subtree) — **GPL-3.0**
+  because it bundles UxPlay; own `LICENSE` and `NOTICE.md` in that directory.
+
+The web bundles do not link against the APK; both are separate works.
 Agent/AI entry points: [AGENTS.md](AGENTS.md).

@@ -154,14 +154,17 @@ und über den Proxy), Browse & Cast, WebRTC-Mirror und Chromecast-Gating ab —
 **19/19 grün gegen die Live-Umgebung** (`streamcaster.pages.dev`, Stand 09.11.2026;
 jeweils aktueller Prüfstand in [STATUS.md](../STATUS.md)).
 
-**Quellcode & Lizenz.** Web-App: `Johi251/streamcaster` — **öffentlich seit 09.11.2026**,
-Lizenz **MIT** (`LICENSE`, Hinweise in `NOTICE.md`). APK: öffentliches Repo
-`Johi251/streamcaster-airplay-receiver`, Lizenz **GPL-3.0** (weil der UxPlay-Kern
-eingebunden ist; eigene `LICENSE` und `NOTICE.md`). Die Trennung ist bewusst: der
-Web-Stack bleibt GPL-frei, damit MIT gültig ist (Details: `CONTRIBUTING.md`,
-`docs/RELEASE.md`). Cloudflare-Account und GitHub-CLI sind auf dem Entwickler-Rechner
-authentifiziert; Zugänge stehen in `ACCESS.md`, die echten Konto-Metadaten nur lokal
-in der gitignorierten `.workbuddy-ai/memory/LOCAL-ACCESS.local.md`.
+**Quellcode & Lizenz.** Seit 18.11.2026 liegt alles in **einem Repository**:
+`Johi251/streamcaster` (öffentlich seit 09.11.2026). Der Web-Track ist **MIT**
+(`LICENSE`, `NOTICE.md`); der APK-Track unter `airplay-receiver/` ist **GPL-3.0**
+(weil der UxPlay-Kern eingebunden ist; eigene `LICENSE` und `NOTICE.md`). Das APK
+ist als `git subtree` mit voller Historie eingebunden. Die Lizenzgrenze ist
+bewusst: der Web-Stack bleibt GPL-frei, damit MIT gültig bleibt (Details:
+`CONTRIBUTING.md`, `docs/RELEASE.md`, ADR D8). Das ehemalige Receiver-Repo
+`Johi251/streamcaster-airplay-receiver` existiert nur noch als Release-Mirror.
+Cloudflare-Account und GitHub-CLI sind auf dem Entwickler-Rechner authentifiziert;
+Zugänge stehen in `ACCESS.md`, echte Konto-Metadaten nur lokal in der
+gitignorierten `.workbuddy-ai/memory/LOCAL-ACCESS.local.md`.
 
 ---
 
@@ -256,6 +259,11 @@ E2E_PROXY_URL=https://streamcaster-proxy.streamcaster.workers.dev \
 **Warum das übernehmbar ist:** ein Web-Core, zwei kleine Worker, ein
 Status-Gate, ein Deploy-Skript — keine Plattform-SDKs, keine Secrets im Repo,
 monatliche Kosten 0 € im Free-Tier.
+
+**Monorepo (seit 18.11.2026):** Web-Track (MIT) und APK-Track (GPL-3.0) liegen
+in einem Repository. `airplay-receiver/` ist ein `git subtree` mit erhaltener
+Historie und eigener `LICENSE`; die Web-Bundles linken nicht dagegen. Das alte
+Repository `Johi251/streamcaster-airplay-receiver` bleibt als Release-Mirror.
 
 ---
 
@@ -450,10 +458,10 @@ apps/proxy/src/rewrite.ts        # HLS Manifest Rewrite + Browse HTML Inject
 **Build & Release:**
 | Schritt | Befehl / Ort |
 |---------|-------------|
-| CI Build | `.github/workflows/android.yml` (Ubuntu, unsigniert) |
+| CI Build | `.github/workflows/android.yml` (Ubuntu, `working-directory: airplay-receiver`, unsigniert) |
 | Lokale Signatur | `scripts/sign-apk.mjs <unsigned.apk> <signed.apk>` mit Keystore `airplay-receiver/.secrets/streamcaster-release.jks` |
 | Keystore Config | `airplay-receiver/.secrets/signing.properties` (gitignored) |
-| Release | `gh release create vX.Y.Z <apk> --repo Johi251/streamcaster-airplay-receiver` |
+| Release | `gh release create vX.Y.Z <apk>` (Monorepo; altes Repo nur Mirror) |
 | Pages Sync | Signierte APK → `airplay-receiver/dist/streamcaster-receiver.apk` → `pnpm deploy:all` kopiert nach `site/dist/a.apk` |
 
 **Verifizierte Hardware:**
@@ -463,7 +471,7 @@ apps/proxy/src/rewrite.ts        # HLS Manifest Rewrite + Browse HTML Inject
 | Fire TV Stick 1. Gen / Lite | 5.x | armeabi-v7a | ✅ (v1.0.4 minSdk 22) |
 | Fire TV Cube | 6/7/8 | arm64 | ✅ |
 
-**Kern-Dateien (airplay-receiver Repo):**
+**Kern-Dateien (`airplay-receiver/` subtree):**
 ```
 airplay-receiver/app/src/main/java/com/streamcaster/receiver/
   HubActivity.kt          # Room Code, Status, QR

@@ -2,15 +2,16 @@
 
 ## Scope of this repository
 
-This repository (web sender, web receiver, signaling worker, media proxy,
-shared library, site) is licensed under the **MIT License** — see `LICENSE`.
-It contains no GPL code.
+Two independently licensed tracks live in this repository:
 
-The **Android AirPlay receiver APK is a separate repository**
-(`airplay-receiver/`, excluded from this repo via `.gitignore`). Because it
-bundles [UxPlay](https://github.com/FDH2/UxPlay), that repository is licensed
-**GPL-3.0** and carries its own `LICENSE` and `NOTICE.md`. Distributing or
-modifying the APK happens there, under GPL-3.0 — not here.
+| Path | License | Scope |
+| --- | --- | --- |
+| `apps/`, `packages/`, `site/`, `scripts/`, `e2e/`, root docs | **MIT** — see `LICENSE` | Web sender, web receiver, signaling + proxy Workers, shared library, site |
+| `airplay-receiver/` (git subtree) | **GPL-3.0** — see `airplay-receiver/LICENSE` and `airplay-receiver/NOTICE.md` | Native Android/Fire TV AirPlay receiver APK, incl. the UxPlay/JNI core |
+
+The GPL track is a separate work: the web bundles do not link against it and the
+APK ships as a standalone binary. The root MIT license applies to the web track
+only. GPL-3.0 obligations apply when distributing or modifying the APK.
 
 ## Runtime dependencies of the shipped web bundles
 
@@ -34,5 +35,5 @@ respective packages).
 
 AirPlay, Chromecast, Fire TV, Apple TV, iPhone and iPad are trademarks of
 their respective owners. This project is not affiliated with, endorsed by, or
-sponsored by Apple, Google or Amazon. The AirPlay interoperability in the
-separate receiver repository is provided by UxPlay (GPL-3.0).
+sponsored by Apple, Google or Amazon. The AirPlay interoperability in the `airplay-receiver/` subtree is provided by
+UxPlay (GPL-3.0).

@@ -7,7 +7,7 @@
 - **last-updated:** 2026-11-18
 - **Web-Stack version:** v1.1.4-equivalent (tags up to `v1.0.3`; see ACCESS.md
   versioning for the detail history)
-- **APK (separate repo, GPL-3.0):** v1.0.4 — live on
+- **APK (GPL-3.0 subtree `airplay-receiver/`):** v1.0.4 — live on
   `https://streamcaster.pages.dev/a.apk`, SHA-256 `4cb303e6…f1f57` verified
   against the deployed artefact on 2026-11-09
 - **Deployed:** sender/receiver on Cloudflare Pages, signaling + proxy Workers
@@ -16,7 +16,9 @@
   against live (`streamcaster.pages.dev`) confirmed 2026-11-16. Docs refreshed
   2026-11-18 (handbook ch. 8 deployment / ch. 9 platforms, quick-start PDFs);
   no redeploy needed — docs are not part of the Pages bundle. AirPlay receiver
-  repo kept standalone by D8 (active APK build input, GPL-3.0 boundary).
+  repo integrated as GPL-3.0 subtree by D8 (full history, licence boundary
+  preserved; upstream repo = release mirror). Monorepo migration 2026-11-18:
+  subtree added, root Android workflow, notices updated — no redeploy needed.
 
 ## What works (verified)
 
