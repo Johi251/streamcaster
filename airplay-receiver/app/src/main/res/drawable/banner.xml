@@ -1,0 +1,50 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+
+    <path
+        android:fillColor="#0B0D12"
+        android:pathData="M0,0h320v180H0z" />
+
+    <!-- soft brand glow -->
+    <path
+        android:fillColor="#144F8CFF"
+        android:pathData="M160,36 m-100,0 a100,100 0 1,0 200,0 a100,100 0 1,0 -200,0" />
+
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#4F8CFF"
+        android:strokeWidth="6"
+        android:pathData="M118,62 h84 a8,8 0 0 1 8,8 v40 a8,8 0 0 1 -8,8 h-84 a8,8 0 0 1 -8,-8 v-40 a8,8 0 0 1 8,-8 z" />
+
+    <path
+        android:fillColor="#E8EBF2"
+        android:pathData="M148,76 L176,90 L148,104 Z" />
+
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#8AB4FF"
+        android:strokeWidth="5"
+        android:pathData="M110,138 a18,18 0 0 1 18,18" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#668AB4FF"
+        android:strokeWidth="5"
+        android:pathData="M110,124 a32,32 0 0 1 32,32" />
+    <path
+        android:fillColor="#E8EBF2"
+        android:pathData="M110,152 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+
+    <!-- wordmark bars -->
+    <path
+        android:fillColor="#E8EBF2"
+        android:pathData="M214,78 h60 v10 h-60z" />
+    <path
+        android:fillColor="#4F8CFF"
+        android:pathData="M214,94 h44 v10 h-44z" />
+    <path
+        android:fillColor="#8A93A6"
+        android:pathData="M214,110 h52 v5 h-52z" />
+</vector>

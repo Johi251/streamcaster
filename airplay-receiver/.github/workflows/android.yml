@@ -1,0 +1,115 @@
+name: Build APK
+
+# The native stack (ffmpeg + OpenSSL + UxPlay) is cross-compiled with CMake.
+# Doing that on a Linux runner avoids every Windows-host quirk at once: cmd.exe's
+# 8191-character command line limit, MSYS path translation, and a host Perl too
+# stripped down to run OpenSSL's Configure. Local Windows builds still work, but
+# this is the reference environment and the source of the published APK.
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    # `secrets` cannot be referenced from an `if:` expression, so it is lifted
+    # into job-level env and the steps test that instead.
+    env:
+      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # UxPlay/ffmpeg/libplist/openssl-cmake are pinned submodules.
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # The runner image already ships an Android SDK with cmdline-tools.
+      # android-actions/setup-android@v3 is not used: it still tries to install
+      # the retired legacy "tools" package and aborts.
+      - name: Install SDK packages
+        run: |
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMGR=$(find "$SDK/cmdline-tools" -name sdkmanager -type f | sort | tail -1)
+          echo "using $SDKMGR"
+          yes | "$SDKMGR" --licenses > /dev/null || true
+          "$SDKMGR" --install \
+            "platforms;android-37.0" \
+            "build-tools;36.0.0" \
+            "ndk;27.0.12077973"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+
+      - name: Cache Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # The release build type only gets a signing config when local.properties
+      # carries one, so a missing keystore yields an unsigned APK instead of an
+      # error. Keystore material is supplied as a base64 repository secret.
+      - name: Configure signing
+        if: ${{ env.KEYSTORE_B64 != '' }}
+        run: |
+          mkdir -p .secrets
+          printf '%s' "$KEYSTORE_B64" | base64 -d > .secrets/streamcaster-release.jks
+          cat > local.properties <<EOF
+          storeFile=.secrets/streamcaster-release.jks
+          storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Build release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          find app/build/outputs/apk/release -name '*.apk' -exec cp {} out/ \;
+          ls -l out/
+
+      # Lint reports ~30 pre-existing findings that have nothing to do with device
+      # compatibility, so this gates on NewApi only. A call above minSdk is the one
+      # finding that silently turns into a crash on an older device — exactly what
+      # minSdk 24 for Fire OS 6 risks.
+      - name: Lint (NewApi gate)
+        run: |
+          ./gradlew :app:lintRelease --no-daemon || true
+          REPORT=$(find app/build -name 'lint-results-release.txt' | head -1)
+          echo "report: $REPORT"
+          if [ -z "$REPORT" ]; then
+            echo "::error::lint report not found"
+            exit 1
+          fi
+          if grep -q '\[NewApi\]' "$REPORT"; then
+            grep -n '\[NewApi\]' -B2 "$REPORT" || true
+            echo "::error::NewApi violation — code calls an API above minSdk"
+            exit 1
+          fi
+          echo "no NewApi violations"
+
+      - name: Verify ABIs and SDK levels
+        run: |
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort | tail -1)
+          APK=$(ls out/*.apk | head -1)
+          "$AAPT" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|native-code)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: streamcaster-receiver-apk
+          path: out/*.apk
+          if-no-files-found: error

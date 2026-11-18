@@ -1,0 +1,36 @@
+# Gradle / Android
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local build toolchain (JDK, SDK, NDK) — reproducible via README
+.toolchain/
+.reference-upstream/
+
+# Release signing material — never commit
+.secrets/
+*.jks
+*.keystore
+
+# Build logs / JVM crash dumps
+hs_err_pid*.log
+replay_pid*.log
+*.hprof
+.build-*.log
+.copy-build.log
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Kotlin build cache
+.kotlin/
+
+# Local release artifact (published as GitHub release asset)
+dist/
