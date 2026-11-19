@@ -15,6 +15,10 @@
   2026-11-16 with handbuch v1.1.0 (komponenten-referenz); E2E 19/19 green
   against live (`streamcaster.pages.dev`) confirmed 2026-11-16. Docs refreshed
   2026-11-18 (handbook ch. 8 deployment / ch. 9 platforms, quick-start PDFs);
+- **UI polish pass 2026-11-19:** CSS-only (no JS, ES5 fallback untouched):
+  APK download CTA styled as primary button, link contrast fixed, 44px touch
+  targets for browse nav/bookmarks, receiver seek buttons + volume label
+  styled, reduced-motion added, duplicate sender input rules removed.
 - **Final review 2026-11-19:** independent read-only review closed F-01
   (sender MediaStream track leak), F-02 (SSE keepalive timer), F-03 (stale
   prompt URLs), F-04 (dev-fixture guard order), F-05 (workflow .gitmodules

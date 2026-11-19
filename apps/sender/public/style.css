@@ -56,6 +56,14 @@ header {
 h1 { font-size: 22px; font-weight: 800; letter-spacing: 0.02em; }
 h1 span { color: var(--accent); }
 
+.link, a {
+  color: var(--accent-2);
+  text-decoration: none;
+}
+a:hover, a:focus-visible {
+  text-decoration: underline;
+}
+
 .chip {
   font-size: 12px;
   padding: 4px 12px;
@@ -98,31 +106,6 @@ main { display: flex; flex-direction: column; gap: 16px; flex: 1; }
 .row { display: flex; gap: 10px; }
 .row > * { flex: 1; }
 
-input[type="text"], input[type="url"] {
-  width: 100%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--text);
-  padding: 14px;
-  font-size: 16px;
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.18);
-}
-
-input.code {
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: 0.25em;
-  text-align: center;
-  text-transform: uppercase;
-  font-variant-numeric: tabular-nums;
-}
-
 button {
   appearance: none;
   border: 1px solid var(--border);
@@ -151,6 +134,30 @@ button.primary {
   box-shadow: 0 6px 20px rgba(79, 140, 255, 0.25);
 }
 button.primary:hover { background: var(--accent-2); box-shadow: 0 6px 24px rgba(79, 140, 255, 0.35); }
+
+/* Anchor variant: the APK download CTA is an <a class="primary big block"> */
+a.primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 6px 20px rgba(79, 140, 255, 0.25);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+a.primary:hover, a.primary:focus-visible {
+  background: var(--accent-2);
+  text-decoration: none;
+  box-shadow: 0 6px 24px rgba(79, 140, 255, 0.35);
+}
+a.big {
+  font-size: 17px;
+  padding: 18px;
+}
 
 button.big { font-size: 17px; padding: 18px; }
 button.danger { color: var(--danger); border-color: rgba(255, 95, 109, 0.4); }
@@ -212,7 +219,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 footer { padding: 12px 0 env(safe-area-inset-bottom, 8px); }
-.limit { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.5; }
+.limit { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; }
 
 .status-msg { font-size: 13px; color: var(--muted); min-height: 18px; }
 .status-msg.err { color: var(--danger); }
@@ -236,8 +243,9 @@ footer { padding: 12px 0 env(safe-area-inset-bottom, 8px); }
 
 .nav-row { display: flex; gap: 6px; align-items: center; margin-top: -4px; }
 .nav-btn {
-  padding: 7px 0;
-  width: 40px;
+  padding: 11px 0;
+  min-height: 44px;
+  width: 44px;
   font-size: 15px;
   line-height: 1;
   border-radius: 10px;
@@ -264,7 +272,7 @@ footer { padding: 12px 0 env(safe-area-inset-bottom, 8px); }
 .bm-open {
   border: 0;
   background: transparent;
-  padding: 8px 4px 8px 12px;
+  padding: 12px 4px 12px 14px;
   font-size: 13px;
   font-weight: 500;
   max-width: 240px;
@@ -276,7 +284,7 @@ footer { padding: 12px 0 env(safe-area-inset-bottom, 8px); }
 .bm-del {
   border: 0;
   background: transparent;
-  padding: 8px 10px 8px 6px;
+  padding: 12px 12px 12px 8px;
   font-size: 15px;
   color: var(--muted);
 }
