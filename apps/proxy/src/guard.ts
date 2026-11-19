@@ -53,19 +53,20 @@ export function guardUrl(raw: string | null, opts: GuardOptions = {}): GuardResu
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     return { ok: false, status: 400, reason: "unsupported protocol" };
   }
-  if (opts.httpsOnly !== false && url.protocol !== "https:") {
-    return { ok: false, status: 400, reason: "https only" };
-  }
   if (url.username || url.password) {
     return { ok: false, status: 400, reason: "credentials in url" };
   }
-  // An arbitrary port turns the relay into a port scanner. Media and HTML
-  // origins use the default port; dev fixtures opt out via allowPrivate.
-  if (url.port && url.port !== "80" && url.port !== "443") {
-    return { ok: false, status: 403, reason: "non-standard port blocked" };
-  }
+  // Dev/E2E fixtures opt out of ALL origin checks (https, private hosts, ports).
+  // The checks below guard the public relay only.
   if (opts.allowPrivate) {
     return { ok: true, status: 200, reason: "", url };
+  }
+
+  if (opts.httpsOnly !== false && url.protocol !== "https:") {
+    return { ok: false, status: 400, reason: "https only" };
+  }
+  if (url.port && url.port !== "80" && url.port !== "443") {
+    return { ok: false, status: 403, reason: "non-standard port blocked" };
   }
   const host = url.hostname.toLowerCase();
   if (BLOCKED_HOSTNAMES.has(host)) {

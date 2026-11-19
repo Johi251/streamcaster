@@ -15,6 +15,10 @@
   2026-11-16 with handbuch v1.1.0 (komponenten-referenz); E2E 19/19 green
   against live (`streamcaster.pages.dev`) confirmed 2026-11-16. Docs refreshed
   2026-11-18 (handbook ch. 8 deployment / ch. 9 platforms, quick-start PDFs);
+- **Final review 2026-11-19:** independent read-only review closed F-01
+  (sender MediaStream track leak), F-02 (SSE keepalive timer), F-03 (stale
+  prompt URLs), F-04 (dev-fixture guard order), F-05 (workflow .gitmodules
+  trigger). Unit suite now 74/74.
   no redeploy needed — docs are not part of the Pages bundle. AirPlay receiver
   repo integrated as GPL-3.0 subtree by D8 (full history, licence boundary
   preserved; upstream repo removed 2026-11-19, APK asset at tag `apk-v1.0.4`).

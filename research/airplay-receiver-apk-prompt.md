@@ -107,7 +107,7 @@ Die StreamCaster-Webapp (die separat gepflegt wird) hat einen festen Platz
 für den APK-Download-Link. Die APK-Release-URL wird dort eingetragen:
 
 - Konstante `AIRPLAY_RECEIVER_APK_URL` in der Webapp (z.B.
-  `https://github.com/<user>/streamcaster-airplay-receiver/releases/latest/download/streamcaster-receiver.apk`)
+  `https://github.com/<user>/streamcaster/releases/download/apk-v1.0.4/streamcaster-receiver.apk`)
 - Die „iPhone-Display spiegeln"-Karte rendert einen Download-Button mit
   dieser URL + die Sideloading-Anleitung oben
 - **Du lieferst die Release-URL → sie wird in die Webapp eingetragen → deployt**

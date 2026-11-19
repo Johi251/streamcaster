@@ -12,6 +12,12 @@ describe("guardUrl hardening (security review 2026-11-15)", () => {
     expect(guardUrl("https://example.com:443/x").ok).toBe(true);
   });
 
+  it("allows dev fixtures with custom ports when allowPrivate is set", () => {
+    expect(guardUrl("http://127.0.0.1:5173/fixture.mp4", { allowPrivate: true }).ok).toBe(true);
+    expect(guardUrl("http://127.0.0.1:8787/fixture.mp4", { allowPrivate: true }).ok).toBe(true);
+    expect(guardUrl("http://127.0.0.1:5173/fixture.mp4").ok).toBe(false);
+  });
+
   it("blocks private/link-local/mapped IPv6 literals", () => {
     expect(guardUrl("https://[fc00::1]/x").ok).toBe(false);
     expect(guardUrl("https://[fe80::1]/x").ok).toBe(false);

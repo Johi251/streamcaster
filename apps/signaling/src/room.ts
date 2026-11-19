@@ -396,6 +396,10 @@ export class Room implements DurableObject {
     }
     for (const s of this.sseSinks) s.close();
     this.sseSinks.clear();
+    if (this.keepalive) {
+      clearInterval(this.keepalive);
+      this.keepalive = null;
+    }
   }
 
   // ------------------------------------------------------------------ Storage

@@ -24,6 +24,9 @@ export class SenderPeer {
 
   /** Establish a connection for streaming the given MediaStream. */
   async startStream(stream: MediaStream): Promise<void> {
+    // Keep a reference so stop() can release camera/screen tracks. pc.close()
+    // alone does not stop capture — the camera indicator would stay on.
+    this.stream = stream;
     this.setup();
     const pc = this.pc!;
     for (const track of stream.getTracks()) pc.addTrack(track, stream);
